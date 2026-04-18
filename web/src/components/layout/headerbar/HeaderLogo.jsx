@@ -44,7 +44,7 @@ const HeaderLogo = ({
         <img
           src={logo}
           alt='logo'
-          className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-full ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full transition-all duration-200 group-hover:scale-110 rounded-md ${!isLoading && logoLoaded ? 'opacity-100' : 'opacity-0'}`}
         />
       </div>
       <div className='hidden md:flex items-center gap-2'>
@@ -55,17 +55,17 @@ const HeaderLogo = ({
             width={120}
             height={24}
           >
-            <Typography.Title
-              heading={4}
-              className='!text-lg !font-semibold !mb-0'
+            <span
+              className='text-lg font-bold text-zinc-900 dark:text-white'
+              style={{ fontFamily: "'Montserrat', 'Inter', sans-serif", letterSpacing: '-0.01em' }}
             >
               {systemName}
-            </Typography.Title>
+            </span>
           </SkeletonWrapper>
           {(isSelfUseMode || isDemoSiteMode) && !isLoading && (
             <Tag
               color={isSelfUseMode ? 'purple' : 'blue'}
-              className='text-xs px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm'
+              className='text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-sm'
               size='small'
               shape='circle'
             >

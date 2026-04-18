@@ -29,12 +29,47 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // antd 未安装但 @lobehub/icons/antd-style 间接依赖它，映射到最小 stub
+      'antd': path.resolve(__dirname, './src/mocks/antd-stub.js'),
     },
   },
   plugins: [
     codeInspectorPlugin({
       bundler: 'vite',
     }),
+    // 在首个 CSS <link> 前注入 @layer 顺序声明，确保 semi 层优先级高于 tailwind-base
+    {
+      name: 'inject-layer-order',
+      transformIndexHtml: {
+        order: 'post',
+        handler() {
+          return [
+            {
+              tag: 'style',
+              children: '@layer tailwind-base,semi,tailwind-components,tailwind-utils;',
+              injectTo: 'head-prepend',
+            },
+          ];
+        },
+      },
+    },
+    // 注入 antd importmap stub，防止 @lobehub/icons/antd-style 白屏
+    {
+      name: 'inject-antd-importmap',
+      transformIndexHtml: {
+        order: 'post',
+        handler() {
+          return [
+            {
+              tag: 'script',
+              attrs: { type: 'importmap' },
+              children: '{"imports":{"antd":"/antd-stub.js?v=2"}}',
+              injectTo: 'head-prepend',
+            },
+          ];
+        },
+      },
+    },
     {
       name: 'treat-js-files-as-jsx',
       async transform(code, id) {

@@ -45,6 +45,20 @@ import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoa
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
+// 10 种 APIMart 风格调色板：每张卡片按 index % 10 循环
+const CARD_PALETTE = [
+  { bg: 'rgba(60,119,246,0.12)',   glow: 'rgba(60,119,246,0.55)',  border: 'rgba(60,119,246,0.38)'  }, // blue
+  { bg: 'rgba(139,92,246,0.12)',   glow: 'rgba(139,92,246,0.55)',  border: 'rgba(139,92,246,0.38)'  }, // purple
+  { bg: 'rgba(34,211,238,0.10)',   glow: 'rgba(34,211,238,0.5)',   border: 'rgba(34,211,238,0.36)'  }, // cyan
+  { bg: 'rgba(16,163,127,0.12)',   glow: 'rgba(16,163,127,0.55)',  border: 'rgba(16,163,127,0.38)'  }, // teal
+  { bg: 'rgba(236,72,153,0.10)',   glow: 'rgba(236,72,153,0.5)',   border: 'rgba(236,72,153,0.35)'  }, // pink
+  { bg: 'rgba(245,158,11,0.10)',   glow: 'rgba(245,158,11,0.5)',   border: 'rgba(245,158,11,0.35)'  }, // amber
+  { bg: 'rgba(99,102,241,0.12)',   glow: 'rgba(99,102,241,0.55)',  border: 'rgba(99,102,241,0.38)'  }, // indigo
+  { bg: 'rgba(20,184,166,0.10)',   glow: 'rgba(20,184,166,0.5)',   border: 'rgba(20,184,166,0.36)'  }, // emerald
+  { bg: 'rgba(249,115,22,0.10)',   glow: 'rgba(249,115,22,0.5)',   border: 'rgba(249,115,22,0.35)'  }, // orange
+  { bg: 'rgba(167,139,250,0.10)',  glow: 'rgba(167,139,250,0.5)',  border: 'rgba(167,139,250,0.35)' }, // violet
+];
+
 const CARD_STYLES = {
   container:
     'w-12 h-12 rounded-2xl flex items-center justify-center relative shadow-md',
@@ -250,10 +264,18 @@ const PricingCardView = ({
             quotaDisplayType: siteDisplayType,
           });
 
+          const palette = CARD_PALETTE[index % CARD_PALETTE.length];
+
           return (
             <Card
               key={modelKey || index}
-              className={`!rounded-2xl transition-all duration-200 hover:shadow-lg border cursor-pointer ${isSelected ? CARD_STYLES.selected : CARD_STYLES.default}`}
+              className={`!rounded-2xl transition-all duration-200 border cursor-pointer pricing-card-glow ${isSelected ? CARD_STYLES.selected : ''}`}
+              style={{
+                '--pc-accent-bg': palette.bg,
+                '--pc-accent-glow': palette.glow,
+                '--pc-accent-border': palette.border,
+                borderColor: isSelected ? undefined : 'rgba(255,255,255,0.07)',
+              }}
               bodyStyle={{ height: '100%' }}
               onClick={() => openModelDetail && openModelDetail(model)}
             >
@@ -263,7 +285,7 @@ const PricingCardView = ({
                   <div className='flex items-start space-x-3 flex-1 min-w-0'>
                     {getModelIcon(model)}
                     <div className='flex-1 min-w-0'>
-                      <h3 className='text-lg font-bold text-gray-900 truncate'>
+                      <h3 className='text-lg font-bold text-white truncate'>
                         {model.model_name}
                       </h3>
                       <div className='flex flex-col gap-1 text-xs mt-1'>

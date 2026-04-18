@@ -62,7 +62,8 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  // 首页由 Home 组件内嵌 HomeFooter，其他页面不显示页脚
+  const shouldHideFooter = true;
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&

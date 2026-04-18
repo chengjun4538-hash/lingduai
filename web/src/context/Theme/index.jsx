@@ -47,45 +47,21 @@ const getSystemTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const [theme, _setTheme] = useState(() => {
     try {
-      return localStorage.getItem('theme-mode') || 'auto';
+      return localStorage.getItem('theme-mode') || 'dark';
     } catch {
-      return 'auto';
+      return 'dark';
     }
   });
 
-  const [systemTheme, setSystemTheme] = useState(getSystemTheme());
+  // 强制深色模式，不响应系统主题变化
+  const actualTheme = 'dark';
 
-  // 计算实际应用的主题
-  const actualTheme = theme === 'auto' ? systemTheme : theme;
-
-  // 监听系统主题变化
+  // 始终应用深色主题到DOM
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-      const handleSystemThemeChange = (e) => {
-        setSystemTheme(e.matches ? 'dark' : 'light');
-      };
-
-      mediaQuery.addEventListener('change', handleSystemThemeChange);
-
-      return () => {
-        mediaQuery.removeEventListener('change', handleSystemThemeChange);
-      };
-    }
+    document.body.setAttribute('theme-mode', 'dark');
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('theme-mode', 'dark');
   }, []);
-
-  // 应用主题到DOM
-  useEffect(() => {
-    const body = document.body;
-    if (actualTheme === 'dark') {
-      body.setAttribute('theme-mode', 'dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      body.removeAttribute('theme-mode');
-      document.documentElement.classList.remove('dark');
-    }
-  }, [actualTheme]);
 
   const setTheme = useCallback((newTheme) => {
     let themeValue;

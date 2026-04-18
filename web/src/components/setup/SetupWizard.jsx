@@ -269,12 +269,12 @@ const SetupWizard = () => {
   };
 
   return (
-    <div className='min-h-screen flex items-center justify-center px-4'>
+    <div className='min-h-screen flex items-center justify-center px-4 bg-[#0a0a0a]'>
       <div className='w-full max-w-4xl'>
-        <Card className='!rounded-2xl shadow-sm border-0'>
+        <Card className='!rounded-2xl shadow-sm border-0' style={{ background: '#111111', border: '1px solid #1f1f1f' }}>
           <div className='mb-4'>
-            <div className='text-xl font-semibold'>{t('系统初始化')}</div>
-            <div className='text-xs text-gray-600'>
+            <div className='text-xl font-semibold' style={{ color: '#ffffff' }}>{t('系统初始化')}</div>
+            <div className='text-xs text-gray-400'>
               {t('欢迎使用，请完成以下设置以开始使用系统')}
             </div>
           </div>

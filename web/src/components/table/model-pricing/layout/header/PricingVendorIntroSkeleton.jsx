@@ -22,14 +22,14 @@ import { Card, Skeleton } from '@douyinfe/semi-ui';
 
 const THEME_COLORS = {
   allVendors: {
-    primary: '37 99 235',
-    background: 'rgba(59, 130, 246, 0.1)',
-    border: 'rgba(59, 130, 246, 0.2)',
+    primary: '99 102 241',
+    background: 'rgba(99, 102, 241, 0.1)',
+    border: 'rgba(99, 102, 241, 0.2)',
   },
   specific: {
-    primary: '16 185 129',
-    background: 'rgba(16, 185, 129, 0.1)',
-    border: 'rgba(16, 185, 129, 0.2)',
+    primary: '139 92 246',
+    background: 'rgba(139, 92, 246, 0.1)',
+    border: 'rgba(139, 92, 246, 0.2)',
   },
   neutral: {
     background: 'rgba(156, 163, 175, 0.1)',
@@ -49,7 +49,7 @@ const SIZES = {
 const SKELETON_STYLES = {
   cover: (primaryColor) => ({
     '--palette-primary-darkerChannel': primaryColor,
-    backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
+    backgroundImage: `linear-gradient(135deg, rgba(var(--palette-primary-darkerChannel) / 90%), rgba(139, 92, 246, 0.75))`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

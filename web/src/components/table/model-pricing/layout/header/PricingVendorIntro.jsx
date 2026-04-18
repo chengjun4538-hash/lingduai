@@ -39,12 +39,12 @@ const CONFIG = {
 
 const THEME_COLORS = {
   allVendors: {
-    primary: '37 99 235',
-    background: 'rgba(59, 130, 246, 0.08)',
+    primary: '99 102 241',
+    background: 'rgba(99, 102, 241, 0.08)',
   },
   specific: {
-    primary: '16 185 129',
-    background: 'rgba(16, 185, 129, 0.1)',
+    primary: '139 92 246',
+    background: 'rgba(139, 92, 246, 0.10)',
   },
 };
 
@@ -262,7 +262,7 @@ const PricingVendorIntro = memo(
     const createCoverStyle = useCallback(
       (primaryColor) => ({
         '--palette-primary-darkerChannel': primaryColor,
-        backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
+        backgroundImage: `linear-gradient(135deg, rgba(var(--palette-primary-darkerChannel) / 90%), rgba(139, 92, 246, 0.75))`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',

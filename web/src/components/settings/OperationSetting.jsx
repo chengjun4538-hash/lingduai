@@ -126,10 +126,10 @@ const OperationSetting = () => {
         <Card style={{ marginTop: '10px' }}>
           <SettingsGeneral options={inputs} refresh={onRefresh} />
         </Card>
-        {/* 顶栏模块管理 */}
-        <div style={{ marginTop: '10px' }}>
+        {/* 顶栏模块管理 — 已由 public/site-config.json 接管，此入口隐藏 */}
+        {/* <div style={{ marginTop: '10px' }}>
           <SettingsHeaderNavModules options={inputs} refresh={onRefresh} />
-        </div>
+        </div> */}
         {/* 左侧边栏模块管理（管理员） */}
         <div style={{ marginTop: '10px' }}>
           <SettingsSidebarModulesAdmin options={inputs} refresh={onRefresh} />

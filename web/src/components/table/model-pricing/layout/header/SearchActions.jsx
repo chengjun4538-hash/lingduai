@@ -79,12 +79,12 @@ const SearchActions = memo(
         </div>
 
         <Button
-          theme='outline'
+          theme='solid'
           type='primary'
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='btn-glow-primary'
         >
           {t('复制')}
         </Button>
@@ -128,6 +128,7 @@ const SearchActions = memo(
               theme={viewMode === 'table' ? 'solid' : 'outline'}
               type={viewMode === 'table' ? 'primary' : 'tertiary'}
               onClick={handleViewModeToggle}
+              className={viewMode === 'table' ? 'btn-glow-toggle-on' : 'btn-glow-toggle-off'}
             >
               {t('表格视图')}
             </Button>
@@ -137,6 +138,7 @@ const SearchActions = memo(
               theme={tokenUnit === 'K' ? 'solid' : 'outline'}
               type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
               onClick={handleTokenUnitToggle}
+              className={tokenUnit === 'K' ? 'btn-glow-toggle-on' : 'btn-glow-toggle-off'}
             >
               {tokenUnit}
             </Button>
@@ -149,6 +151,7 @@ const SearchActions = memo(
             type='tertiary'
             icon={<IconFilter />}
             onClick={handleFilterClick}
+            className='btn-glow-secondary'
           >
             {t('筛选')}
           </Button>

@@ -20,9 +20,22 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Spin } from '@douyinfe/semi-ui';
 
-const Loading = ({ size = 'small' }) => {
+const Loading = ({ size = 'large' }) => {
   return (
-    <div className='fixed inset-0 w-screen h-screen flex items-center justify-center'>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        backgroundColor: 'transparent',
+        pointerEvents: 'none',
+      }}
+    >
       <Spin size={size} spinning={true} />
     </div>
   );

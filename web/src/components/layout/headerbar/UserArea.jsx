@@ -169,25 +169,30 @@ const UserArea = ({
     }
 
     return (
-      <div className='flex items-center'>
+      <div className='flex items-center gap-2'>
         <Link to='/login' className='flex'>
           <Button
             theme='borderless'
             type='tertiary'
-            className={loginButtonClasses}
+            className='!rounded-lg !px-4 !py-2 !text-sm !font-medium !text-zinc-300 hover:!text-white hover:!bg-zinc-800/60 transition-colors'
           >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
+            {t('登录')}
           </Button>
         </Link>
         {showRegisterButton && (
           <div className='hidden md:block'>
-            <Link to='/register' className='flex -ml-px'>
+            <Link to='/register' className='flex'>
               <Button
                 theme='solid'
                 type='primary'
-                className={registerButtonClasses}
+                className='!rounded-lg !px-4 !py-2 !text-sm !font-semibold !text-white'
+                style={{
+                  background: 'linear-gradient(to right, #3c77f6, #0a4cdb)',
+                  border: 'none',
+                  boxShadow: '0 2px 8px rgba(60,119,246,0.4)',
+                }}
               >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
+                {t('注册')}
               </Button>
             </Link>
           </div>
