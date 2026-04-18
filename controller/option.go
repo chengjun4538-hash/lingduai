@@ -296,6 +296,27 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "HomePageContent":
+		siteConfig := strings.TrimSpace(option.Value.(string))
+		if siteConfig == "" {
+			break
+		}
+		if !strings.HasPrefix(siteConfig, "{") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "站点配置必须是 JSON 对象",
+			})
+			return
+		}
+		var parsed map[string]any
+		err = common.UnmarshalJsonStr(siteConfig, &parsed)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "站点配置不是合法的 JSON 字符串",
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

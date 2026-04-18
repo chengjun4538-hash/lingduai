@@ -28,30 +28,52 @@ import {
   Space,
   Card,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  timestamp2string,
+  verifyJSON,
+} from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
+import { resetSiteConfigCache } from '../../hooks/common/useSiteConfig';
+import defaultSiteConfig from '../../config/defaultSiteConfig';
 
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
+const DEFAULT_INPUTS = {
+  Notice: '',
+  [LEGAL_USER_AGREEMENT_KEY]: '',
+  [LEGAL_PRIVACY_POLICY_KEY]: '',
+  SystemName: '',
+  Logo: '',
+  Footer: '',
+  About: '',
+  HomePageContent: '',
+};
+
+const formatJSONTextareaValue = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmedValue = value.trim();
+  if (trimmedValue === '' || !verifyJSON(trimmedValue)) {
+    return value;
+  }
+  return JSON.stringify(JSON.parse(trimmedValue), null, 2);
+};
+
+const DEFAULT_SITE_CONFIG_TEXT = JSON.stringify(defaultSiteConfig, null, 2);
 
 const OtherSetting = () => {
   const { t } = useTranslation();
-  let [inputs, setInputs] = useState({
-    Notice: '',
-    [LEGAL_USER_AGREEMENT_KEY]: '',
-    [LEGAL_PRIVACY_POLICY_KEY]: '',
-    SystemName: '',
-    Logo: '',
-    Footer: '',
-    About: '',
-    HomePageContent: '',
-  });
+  let [inputs, setInputs] = useState(DEFAULT_INPUTS);
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [statusState] = useContext(StatusContext);
   const [updateData, setUpdateData] = useState({
     tag_name: '',
     content: '',
@@ -65,7 +87,12 @@ const OtherSetting = () => {
     });
     const { success, message } = res.data;
     if (success) {
-      setInputs((inputs) => ({ ...inputs, [key]: value }));
+      const nextValue =
+        key === 'HomePageContent' ? formatJSONTextareaValue(value) : value;
+      setInputs((inputs) => ({ ...inputs, [key]: nextValue }));
+      if (key === 'HomePageContent') {
+        resetSiteConfigCache();
+      }
     } else {
       showError(message);
     }
@@ -182,18 +209,31 @@ const OtherSetting = () => {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: false }));
     }
   };
-  // 个性化设置 - 首页内容
-  const submitOption = async (key) => {
+  // 个性化设置 - 站点 JSON 配置
+  const submitSiteConfig = async () => {
+    const siteConfigText = inputs.HomePageContent.trim();
+    if (siteConfigText !== '') {
+      if (!verifyJSON(siteConfigText)) {
+        showError(t('站点配置不是合法的 JSON 字符串'));
+        return;
+      }
+      const parsed = JSON.parse(siteConfigText);
+      if (Object.prototype.toString.call(parsed) !== '[object Object]') {
+        showError(t('站点配置必须是 JSON 对象'));
+        return;
+      }
+    }
+
     try {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
         HomePageContent: true,
       }));
-      await updateOption(key, inputs[key]);
-      showSuccess('首页内容已更新');
+      await updateOption('HomePageContent', siteConfigText);
+      showSuccess(t('站点配置已更新'));
     } catch (error) {
-      console.error('首页内容更新失败', error);
-      showError('首页内容更新失败');
+      console.error('站点配置更新失败', error);
+      showError(t('站点配置更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -282,15 +322,21 @@ const OtherSetting = () => {
     const res = await API.get('/api/option/');
     const { success, message, data } = res.data;
     if (success) {
-      let newInputs = {};
+      let newInputs = { ...DEFAULT_INPUTS };
       data.forEach((item) => {
-        if (item.key in inputs) {
-          newInputs[item.key] = item.value;
+        if (item.key in newInputs) {
+          newInputs[item.key] =
+            item.key === 'HomePageContent'
+              ? formatJSONTextareaValue(item.value)
+              : item.value;
         }
       });
+      if (!newInputs.HomePageContent.trim()) {
+        newInputs.HomePageContent = DEFAULT_SITE_CONFIG_TEXT;
+      }
       setInputs(newInputs);
-      formAPISettingGeneral.current.setValues(newInputs);
-      formAPIPersonalization.current.setValues(newInputs);
+      formAPISettingGeneral.current?.setValues(newInputs);
+      formAPIPersonalization.current?.setValues(newInputs);
     } else {
       showError(message);
     }
@@ -445,20 +491,23 @@ const OtherSetting = () => {
                 {t('设置 Logo')}
               </Button>
               <Form.TextArea
-                label={t('首页内容')}
+                label={t('站点 JSON 配置')}
                 placeholder={t(
-                  '在此输入首页内容，支持 Markdown & HTML 代码，设置后首页的状态信息将不再显示。如果输入的是一个链接，则会使用该链接作为 iframe 的 src 属性，这允许你设置任意网页作为首页',
+                  '在此输入站点 JSON 配置。保存后写入数据库并优先于前端内置默认配置生效，留空则回退到内置配置',
                 )}
                 field={'HomePageContent'}
                 onChange={handleInputChange}
                 style={{ fontFamily: 'JetBrains Mono, Consolas' }}
-                autosize={{ minRows: 6, maxRows: 12 }}
+                autosize={{ minRows: 10, maxRows: 24 }}
+                helpText={t(
+                  '这里填写的是站点配置 JSON，不再支持旧版首页 Markdown 或 iframe 自定义逻辑',
+                )}
               />
               <Button
-                onClick={() => submitOption('HomePageContent')}
+                onClick={submitSiteConfig}
                 loading={loadingInput['HomePageContent']}
               >
-                {t('设置首页内容')}
+                {t('保存站点配置')}
               </Button>
               <Form.TextArea
                 label={t('关于')}
