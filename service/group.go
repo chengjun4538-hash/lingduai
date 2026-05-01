@@ -33,6 +33,12 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 			groupsCopy[userGroup] = "用户分组"
 		}
 	}
+	// DefaultUseAutoGroup 开启时，所有用户均可使用 "auto" 分组
+	if setting.DefaultUseAutoGroup {
+		if _, ok := groupsCopy["auto"]; !ok {
+			groupsCopy["auto"] = setting.GetUsableGroupDescription("auto")
+		}
+	}
 	return groupsCopy
 }
 

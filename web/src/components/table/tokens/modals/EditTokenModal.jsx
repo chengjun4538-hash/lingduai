@@ -138,7 +138,7 @@ const EditTokenModal = (props) => {
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
+        label: info.desc || group,
         value: group,
         ratio: info.ratio,
       }));
@@ -148,9 +148,14 @@ const EditTokenModal = (props) => {
         }
       }
       setGroups(localGroupOptions);
-      // if (statusState?.status?.default_use_auto_group && formApiRef.current) {
-      //   formApiRef.current.setValue('group', 'auto');
-      // }
+      if (
+        statusState?.status?.default_use_auto_group &&
+        !isEdit &&
+        formApiRef.current &&
+        localGroupOptions.some((g) => g.value === 'auto')
+      ) {
+        formApiRef.current.setValue('group', 'auto');
+      }
     } else {
       showError(t(message));
     }
@@ -390,6 +395,7 @@ const EditTokenModal = (props) => {
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
+                        renderSelectedItem={(option) => option.value}
                         filter={(input, option) => {
                           const q = input.toLowerCase();
                           return (
