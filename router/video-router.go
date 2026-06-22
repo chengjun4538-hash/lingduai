@@ -31,6 +31,18 @@ func SetVideoRouter(router *gin.Engine) {
 		videoV1Router.GET("/videos/:task_id", controller.RelayTaskFetch)
 	}
 
+	viduRouter := router.Group("/ent/v2")
+	viduRouter.Use(middleware.RouteTag("relay"))
+	{
+		viduSubmitRouter := viduRouter.Group("")
+		viduSubmitRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+		viduSubmitRouter.POST("/reference2video", controller.RelayTask)
+
+		viduFetchRouter := viduRouter.Group("")
+		viduFetchRouter.Use(middleware.TokenAuth())
+		viduFetchRouter.GET("/tasks/:task_id/creations", controller.RelayViduTaskFetch)
+	}
+
 	klingV1Router := router.Group("/kling/v1")
 	klingV1Router.Use(middleware.RouteTag("relay"))
 	klingV1Router.Use(middleware.KlingRequestConvert(), middleware.TokenAuth(), middleware.Distribute())

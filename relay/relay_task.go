@@ -2,12 +2,14 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,6 +21,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -178,26 +181,34 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
-	priceData, err := helper.ModelPriceHelperPerCall(c, info)
-	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
-	}
-	info.PriceData = priceData
-
-	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
-	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
-	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
-		for k, v := range estimatedRatios {
-			info.PriceData.AddOtherRatio(k, v)
+	if isViduDynamicBillingModel(modelName) || isViduDynamicBillingModel(info.UpstreamModelName) {
+		priceData, err := buildViduDynamicPriceData(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "vidu_billing_error", http.StatusBadRequest)
 		}
-	}
+		info.PriceData = priceData
+	} else {
+		priceData, err := helper.ModelPriceHelperPerCall(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+		}
+		info.PriceData = priceData
 
-	// 6. 将 OtherRatios 应用到基础额度
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
-		for _, ra := range info.PriceData.OtherRatios {
-			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+		// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
+		//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
+		//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
+		if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
+			for k, v := range estimatedRatios {
+				info.PriceData.AddOtherRatio(k, v)
+			}
+		}
+
+		// 6. 将 OtherRatios 应用到基础额度
+		if !common.StringsContains(constant.TaskPricePatches, modelName) {
+			for _, ra := range info.PriceData.OtherRatios {
+				if ra != 1.0 {
+					info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+				}
 			}
 		}
 	}
@@ -278,6 +289,111 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 	return int(result)
 }
 
+const viduDefaultDuration = 5
+
+var viduResolutionSecondPrices = map[string]float64{
+	"1080p": 0.75,
+	"720p":  0.6,
+	"540p":  0.3,
+}
+
+func isViduDynamicBillingModel(modelName string) bool {
+	return strings.Contains(strings.ToLower(modelName), "vidu")
+}
+
+func buildViduDynamicPriceData(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	duration := viduRequestDuration(req)
+	resolution := normalizeViduResolution(viduRequestResolution(req))
+	unitPrice, ok := viduResolutionSecondPrices[resolution]
+	if !ok {
+		return types.PriceData{}, fmt.Errorf("unsupported vidu resolution: %s", resolution)
+	}
+
+	groupRatioInfo := helper.HandleGroupRatio(c, info)
+	quota := int(unitPrice * float64(duration) * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+	freeModel := groupRatioInfo.GroupRatio == 0 || unitPrice == 0
+
+	return types.PriceData{
+		FreeModel:      freeModel,
+		ModelPrice:     unitPrice,
+		UsePrice:       true,
+		Quota:          quota,
+		GroupRatioInfo: groupRatioInfo,
+		OtherRatios: map[string]float64{
+			"duration":        float64(duration),
+			"vidu_unit_price": unitPrice,
+		},
+	}, nil
+}
+
+func viduRequestDuration(req relaycommon.TaskSubmitReq) int {
+	if req.Duration > 0 {
+		return req.Duration
+	}
+	if req.Seconds != "" {
+		if v, err := strconv.Atoi(req.Seconds); err == nil && v > 0 {
+			return v
+		}
+	}
+	for _, key := range []string{"duration", "seconds"} {
+		if v := metadataInt(req.Metadata, key); v > 0 {
+			return v
+		}
+	}
+	return viduDefaultDuration
+}
+
+func viduRequestResolution(req relaycommon.TaskSubmitReq) string {
+	if req.Resolution != "" {
+		return req.Resolution
+	}
+	if req.Size != "" {
+		return req.Size
+	}
+	if v, ok := req.Metadata["resolution"].(string); ok {
+		return v
+	}
+	if v, ok := req.Metadata["size"].(string); ok {
+		return v
+	}
+	return "1080p"
+}
+
+func normalizeViduResolution(resolution string) string {
+	resolution = strings.ToLower(strings.TrimSpace(resolution))
+	if resolution == "" {
+		return "1080p"
+	}
+	if !strings.HasSuffix(resolution, "p") {
+		resolution += "p"
+	}
+	return resolution
+}
+
+func metadataInt(metadata map[string]interface{}, key string) int {
+	if metadata == nil {
+		return 0
+	}
+	switch v := metadata[key].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case string:
+		i, _ := strconv.Atoi(v)
+		return i
+	default:
+		return 0
+	}
+}
+
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
 	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
 	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
@@ -305,6 +421,135 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 		return
 	}
 	return
+}
+
+func RelayViduTaskFetch(c *gin.Context) *dto.TaskError {
+	taskID := c.Param("task_id")
+	userID := c.GetInt("id")
+	originTask, exist, err := model.GetByTaskId(userID, taskID)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
+	}
+	if !exist {
+		return service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
+	}
+
+	channelModel, err := model.GetChannelById(originTask.ChannelId, true)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "get_channel_failed", http.StatusInternalServerError)
+	}
+	if channelModel.Type != constant.ChannelTypeVidu {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("task channel is not vidu"), "invalid_task_channel", http.StatusBadRequest)
+	}
+
+	baseURL := constant.ChannelBaseURLs[channelModel.Type]
+	if channelModel.GetBaseURL() != "" {
+		baseURL = channelModel.GetBaseURL()
+	}
+	apiKey := channelModel.Key
+	if originTask.PrivateData.Key != "" {
+		apiKey = originTask.PrivateData.Key
+	}
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channelModel.Type)))
+	if adaptor == nil {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("vidu adaptor not found"), "invalid_api_platform", http.StatusBadRequest)
+	}
+
+	resp, err := adaptor.FetchTask(baseURL, apiKey, map[string]any{
+		"task_id": originTask.GetUpstreamTaskID(),
+		"action":  originTask.Action,
+	}, channelModel.GetSetting().Proxy)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "fetch_task_failed", http.StatusBadGateway)
+	}
+	if resp == nil {
+		return service.TaskErrorWrapperLocal(errors.New("empty upstream response"), "fetch_task_failed", http.StatusBadGateway)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+	}
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/json"
+	}
+
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusBadRequest {
+		if taskResult, parseErr := adaptor.ParseTaskResult(body); parseErr == nil && taskResult != nil {
+			updateViduTaskFromFetch(c.Request.Context(), adaptor, originTask, taskResult, body)
+		}
+	}
+
+	c.Data(resp.StatusCode, contentType, body)
+	return nil
+}
+
+func updateViduTaskFromFetch(ctx context.Context, adaptor channel.TaskAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo, body []byte) {
+	snap := task.Snapshot()
+	now := time.Now().Unix()
+
+	if taskResult.Status != "" {
+		task.Status = model.TaskStatus(taskResult.Status)
+	}
+	task.Data = body
+
+	switch task.Status {
+	case model.TaskStatusSubmitted:
+		task.Progress = taskcommon.ProgressSubmitted
+	case model.TaskStatusQueued:
+		task.Progress = taskcommon.ProgressQueued
+	case model.TaskStatusInProgress:
+		task.Progress = taskcommon.ProgressInProgress
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
+	case model.TaskStatusSuccess:
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		if taskResult.Url != "" {
+			task.PrivateData.ResultURL = taskResult.Url
+		} else {
+			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+		}
+	case model.TaskStatusFailure:
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.FailReason = taskResult.Reason
+	default:
+		return
+	}
+	if taskResult.Progress != "" {
+		task.Progress = taskResult.Progress
+	}
+
+	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
+	if isDone && snap.Status != task.Status {
+		won, err := task.UpdateWithStatus(snap.Status)
+		if err != nil || !won {
+			return
+		}
+		if task.Status == model.TaskStatusSuccess {
+			if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
+				service.RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+			} else if taskResult.TotalTokens > 0 {
+				service.RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
+			}
+			return
+		}
+		if task.Quota != 0 {
+			service.RefundTaskQuota(ctx, task, task.FailReason)
+		}
+		return
+	}
+	if !snap.Equal(task.Snapshot()) {
+		_, _ = task.UpdateWithStatus(snap.Status)
+	}
 }
 
 func sunoFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {

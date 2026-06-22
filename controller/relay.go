@@ -476,6 +476,12 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+func RelayViduTaskFetch(c *gin.Context) {
+	if taskErr := relay.RelayViduTaskFetch(c); taskErr != nil {
+		respondTaskError(c, taskErr)
+	}
+}
+
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -575,6 +581,9 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		if relayInfo.ChannelType == constant.ChannelTypeVidu {
+			task.PrivateData.Key = relayInfo.ApiKey
+		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,6 +85,10 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if isNativeReference2VideoPath(c.Request.URL.Path) {
+		return a.validateNativeReference2Video(c, info)
+	}
+
 	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
 		return err
 	}
@@ -110,6 +115,10 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if isNativeReference2VideoPath(c.Request.URL.Path) {
+		return a.buildNativeReference2VideoBody(c, info)
+	}
+
 	v, exists := c.Get("task_request")
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
@@ -180,6 +189,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
+	if isNativeReference2VideoPath(c.Request.URL.Path) {
+		clientBody := rewriteNativeTaskID(responseBody, info.PublicTaskID)
+		c.Data(http.StatusOK, "application/json", clientBody)
+		return vResp.TaskId, responseBody, nil
+	}
+
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
@@ -225,12 +240,16 @@ func (a *TaskAdaptor) GetChannelName() string {
 // ============================
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*requestPayload, error) {
+	resolution := req.Resolution
+	if resolution == "" {
+		resolution = req.Size
+	}
 	r := requestPayload{
 		Model:             taskcommon.DefaultString(info.UpstreamModelName, "viduq1"),
 		Images:            req.Images,
 		Prompt:            req.Prompt,
 		Duration:          taskcommon.DefaultInt(req.Duration, 5),
-		Resolution:        taskcommon.DefaultString(req.Size, "1080p"),
+		Resolution:        taskcommon.DefaultString(resolution, "1080p"),
 		MovementAmplitude: "auto",
 		Bgm:               false,
 	}
@@ -297,4 +316,93 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	return common.Marshal(openAIVideo)
+}
+
+func isNativeReference2VideoPath(path string) bool {
+	return path == "/ent/v2/reference2video"
+}
+
+func (a *TaskAdaptor) validateNativeReference2Video(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	var req relaycommon.TaskSubmitReq
+	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	if strings.TrimSpace(req.Model) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest)
+	}
+	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
+		req.Images = []string{req.Image}
+	}
+	if req.Duration <= 0 {
+		req.Duration = 5
+	}
+	info.Action = constant.TaskActionReferenceGenerate
+	c.Set("task_request", req)
+	return nil
+}
+
+func (a *TaskAdaptor) buildNativeReference2VideoBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	data, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	var body map[string]any
+	if err := common.Unmarshal(data, &body); err != nil {
+		return nil, err
+	}
+	if _, ok := body["duration"]; !ok {
+		body["duration"] = 5
+	} else if duration, ok := asPositiveInt(body["duration"]); !ok || duration <= 0 {
+		body["duration"] = 5
+	}
+	if info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		body["model"] = info.UpstreamModelName
+	}
+	out, err := common.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(out), nil
+}
+
+func asPositiveInt(v any) (int, bool) {
+	switch val := v.(type) {
+	case int:
+		return val, val > 0
+	case int64:
+		return int(val), val > 0
+	case float64:
+		return int(val), val > 0
+	case string:
+		i, err := strconv.Atoi(val)
+		return i, err == nil && i > 0
+	default:
+		return 0, false
+	}
+}
+
+func rewriteNativeTaskID(body []byte, publicTaskID string) []byte {
+	if publicTaskID == "" {
+		return body
+	}
+	var payload map[string]any
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return body
+	}
+	if _, ok := payload["task_id"]; !ok {
+		return body
+	}
+	payload["task_id"] = publicTaskID
+	out, err := common.Marshal(payload)
+	if err != nil {
+		return body
+	}
+	return out
 }
