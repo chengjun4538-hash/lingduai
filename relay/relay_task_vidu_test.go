@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -69,6 +70,53 @@ func TestBuildViduDynamicPriceDataDefaultDuration(t *testing.T) {
 	}
 	if priceData.Quota != 750000 {
 		t.Fatalf("quota = %d, want 750000", priceData.Quota)
+	}
+}
+
+func TestBuildViduDynamicPriceDataUsesConfiguredResolutionPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldQuotaPerUnit := common.QuotaPerUnit
+	oldModelPrice := ratio_setting.ModelPrice2JSONString()
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() {
+		common.QuotaPerUnit = oldQuotaPerUnit
+		if err := ratio_setting.UpdateModelPriceByJSONString(oldModelPrice); err != nil {
+			t.Fatalf("restore model price: %v", err)
+		}
+	})
+
+	modelPrices := ratio_setting.GetModelPriceMap()
+	modelPrices[ratio_setting.ViduResolutionPriceKey("viduq3", "720p")] = 1
+	data, err := common.Marshal(modelPrices)
+	if err != nil {
+		t.Fatalf("marshal model prices: %v", err)
+	}
+	if err := ratio_setting.UpdateModelPriceByJSONString(string(data)); err != nil {
+		t.Fatalf("update model price: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/ent/v2/reference2video", nil)
+	c.Set("task_request", relaycommon.TaskSubmitReq{
+		Model:      "viduq3",
+		Duration:   7,
+		Resolution: "720p",
+	})
+
+	priceData, err := buildViduDynamicPriceData(c, &relaycommon.RelayInfo{
+		OriginModelName: "viduq3",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	})
+	if err != nil {
+		t.Fatalf("buildViduDynamicPriceData returned error: %v", err)
+	}
+	if priceData.Quota != 3500000 {
+		t.Fatalf("quota = %d, want 3500000", priceData.Quota)
+	}
+	if priceData.ModelPrice != 1 {
+		t.Fatalf("model price = %v, want 1", priceData.ModelPrice)
 	}
 }
 

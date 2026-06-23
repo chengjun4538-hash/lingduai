@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import {
+  calculateModelPrice,
+  getModelPriceItems,
+} from '../../../../../helpers';
 
 const { Text } = Typography;
 
@@ -40,6 +43,9 @@ const ModelPricingTable = ({
     ? modelData.enable_groups
     : [];
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
+  const isViduPerSecond =
+    Array.isArray(modelData?.vidu_resolution_prices) &&
+    modelData.vidu_resolution_prices.length > 0;
   const renderGroupPriceTable = () => {
     // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
@@ -70,8 +76,9 @@ const ModelPricingTable = ({
         key: group,
         group: group,
         ratio: groupRatioValue,
-        billingType:
-          modelData?.quota_type === 0
+        billingType: isViduPerSecond
+          ? t('按秒计费')
+          : modelData?.quota_type === 0
             ? t('按量计费')
             : modelData?.quota_type === 1
               ? t('按次计费')
@@ -115,6 +122,7 @@ const ModelPricingTable = ({
         let color = 'white';
         if (text === t('按量计费')) color = 'violet';
         else if (text === t('按次计费')) color = 'teal';
+        else if (text === t('按秒计费')) color = 'orange';
         return (
           <Tag color={color} size='small' shape='circle'>
             {text || '-'}

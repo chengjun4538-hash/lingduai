@@ -15,24 +15,25 @@ import (
 )
 
 type Pricing struct {
-	ModelName              string                  `json:"model_name"`
-	Description            string                  `json:"description,omitempty"`
-	Icon                   string                  `json:"icon,omitempty"`
-	Tags                   string                  `json:"tags,omitempty"`
-	VendorID               int                     `json:"vendor_id,omitempty"`
-	QuotaType              int                     `json:"quota_type"`
-	ModelRatio             float64                 `json:"model_ratio"`
-	ModelPrice             float64                 `json:"model_price"`
-	OwnerBy                string                  `json:"owner_by"`
-	CompletionRatio        float64                 `json:"completion_ratio"`
-	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
-	CreateCacheRatio       *float64                `json:"create_cache_ratio,omitempty"`
-	ImageRatio             *float64                `json:"image_ratio,omitempty"`
-	AudioRatio             *float64                `json:"audio_ratio,omitempty"`
-	AudioCompletionRatio   *float64                `json:"audio_completion_ratio,omitempty"`
-	EnableGroup            []string                `json:"enable_groups"`
-	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	ModelName              string                              `json:"model_name"`
+	Description            string                              `json:"description,omitempty"`
+	Icon                   string                              `json:"icon,omitempty"`
+	Tags                   string                              `json:"tags,omitempty"`
+	VendorID               int                                 `json:"vendor_id,omitempty"`
+	QuotaType              int                                 `json:"quota_type"`
+	ModelRatio             float64                             `json:"model_ratio"`
+	ModelPrice             float64                             `json:"model_price"`
+	OwnerBy                string                              `json:"owner_by"`
+	CompletionRatio        float64                             `json:"completion_ratio"`
+	CacheRatio             *float64                            `json:"cache_ratio,omitempty"`
+	CreateCacheRatio       *float64                            `json:"create_cache_ratio,omitempty"`
+	ImageRatio             *float64                            `json:"image_ratio,omitempty"`
+	AudioRatio             *float64                            `json:"audio_ratio,omitempty"`
+	AudioCompletionRatio   *float64                            `json:"audio_completion_ratio,omitempty"`
+	EnableGroup            []string                            `json:"enable_groups"`
+	SupportedEndpointTypes []constant.EndpointType             `json:"supported_endpoint_types"`
+	ViduResolutionPrices   []ratio_setting.ViduResolutionPrice `json:"vidu_resolution_prices,omitempty"`
+	PricingVersion         string                              `json:"pricing_version,omitempty"`
 }
 
 type PricingVendor struct {
@@ -302,6 +303,12 @@ func updatePricing() {
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
 		}
+		if isViduPricingModel(model, pricing.SupportedEndpointTypes) {
+			pricing.ViduResolutionPrices = ratio_setting.GetViduResolutionSecondPrices(model)
+			if len(pricing.ViduResolutionPrices) > 0 {
+				pricing.QuotaType = 1
+			}
+		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
 			pricing.CacheRatio = &cacheRatio
 		}
@@ -324,7 +331,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+		pricingMap[0].PricingVersion = "2e635f79ad37e58b8427eb22a99f9fa51cdd88202e3687a2772a4f5f1e07a4d4"
 	}
 
 	// 刷新缓存映射，供高并发快速查询
@@ -338,6 +345,15 @@ func updatePricing() {
 	modelEnableGroupsLock.Unlock()
 
 	lastGetPricingTime = time.Now()
+}
+
+func isViduPricingModel(modelName string, endpoints []constant.EndpointType) bool {
+	for _, endpoint := range endpoints {
+		if endpoint == constant.EndpointTypeViduReferenceVideo {
+			return true
+		}
+	}
+	return strings.Contains(strings.ToLower(modelName), "vidu")
 }
 
 // GetSupportedEndpointMap 返回全局端点到路径的映射

@@ -21,6 +21,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -291,12 +292,6 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 
 const viduDefaultDuration = 5
 
-var viduResolutionSecondPrices = map[string]float64{
-	"1080p": 0.75,
-	"720p":  0.6,
-	"540p":  0.3,
-}
-
 func isViduDynamicBillingModel(modelName string) bool {
 	return strings.Contains(strings.ToLower(modelName), "vidu")
 }
@@ -308,8 +303,11 @@ func buildViduDynamicPriceData(c *gin.Context, info *relaycommon.RelayInfo) (typ
 	}
 
 	duration := viduRequestDuration(req)
-	resolution := normalizeViduResolution(viduRequestResolution(req))
-	unitPrice, ok := viduResolutionSecondPrices[resolution]
+	resolution := ratio_setting.NormalizeViduResolution(viduRequestResolution(req))
+	unitPrice, ok := ratio_setting.GetViduResolutionSecondPriceByModels(
+		viduPriceModelNames(info, req),
+		resolution,
+	)
 	if !ok {
 		return types.PriceData{}, fmt.Errorf("unsupported vidu resolution: %s", resolution)
 	}
@@ -329,6 +327,18 @@ func buildViduDynamicPriceData(c *gin.Context, info *relaycommon.RelayInfo) (typ
 			"vidu_unit_price": unitPrice,
 		},
 	}, nil
+}
+
+func viduPriceModelNames(info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) []string {
+	modelNames := make([]string, 0, 3)
+	if info == nil {
+		return append(modelNames, req.Model)
+	}
+	modelNames = append(modelNames, info.OriginModelName)
+	if info.ChannelMeta != nil {
+		modelNames = append(modelNames, info.UpstreamModelName)
+	}
+	return append(modelNames, req.Model)
 }
 
 func viduRequestDuration(req relaycommon.TaskSubmitReq) int {
@@ -362,17 +372,6 @@ func viduRequestResolution(req relaycommon.TaskSubmitReq) string {
 		return v
 	}
 	return "1080p"
-}
-
-func normalizeViduResolution(resolution string) string {
-	resolution = strings.ToLower(strings.TrimSpace(resolution))
-	if resolution == "" {
-		return "1080p"
-	}
-	if !strings.HasSuffix(resolution, "p") {
-		resolution += "p"
-	}
-	return resolution
 }
 
 func metadataInt(metadata map[string]interface{}, key string) int {
