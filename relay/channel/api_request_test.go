@@ -1,14 +1,116 @@
 package channel
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type taskHeaderOverrideAdaptor struct {
+	url string
+}
+
+func (a *taskHeaderOverrideAdaptor) Init(info *relaycommon.RelayInfo) {}
+
+func (a *taskHeaderOverrideAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	return nil
+}
+
+func (a *taskHeaderOverrideAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	return nil
+}
+
+func (a *taskHeaderOverrideAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	return nil
+}
+
+func (a *taskHeaderOverrideAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	return 0
+}
+
+func (a *taskHeaderOverrideAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	return a.url, nil
+}
+
+func (a *taskHeaderOverrideAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Token "+info.ApiKey)
+	return nil
+}
+
+func (a *taskHeaderOverrideAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	return strings.NewReader("{}"), nil
+}
+
+func (a *taskHeaderOverrideAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	return nil, nil
+}
+
+func (a *taskHeaderOverrideAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (string, []byte, *dto.TaskError) {
+	return "", nil, nil
+}
+
+func (a *taskHeaderOverrideAdaptor) GetModelList() []string {
+	return nil
+}
+
+func (a *taskHeaderOverrideAdaptor) GetChannelName() string {
+	return "test"
+}
+
+func (a *taskHeaderOverrideAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	return nil, nil
+}
+
+func (a *taskHeaderOverrideAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+	return nil, nil
+}
+
+func TestDoTaskApiRequestAppliesHeaderOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	headersCh := make(chan http.Header, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headersCh <- r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/ent/v2/reference2video", strings.NewReader("{}"))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey: "sk-test",
+			HeadersOverride: map[string]any{
+				"Authorization": "Bearer {api_key}",
+				"X-Upstream":    "yunwu",
+			},
+		},
+	}
+	adaptor := &taskHeaderOverrideAdaptor{url: server.URL + "/ent/v2/reference2video"}
+
+	resp, err := DoTaskApiRequest(adaptor, ctx, info, strings.NewReader("{}"))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	headers := <-headersCh
+	require.Equal(t, "Bearer sk-test", headers.Get("Authorization"))
+	require.Equal(t, "yunwu", headers.Get("X-Upstream"))
+	require.Equal(t, "application/json", headers.Get("Content-Type"))
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

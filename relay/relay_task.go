@@ -454,10 +454,26 @@ func RelayViduTaskFetch(c *gin.Context) *dto.TaskError {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("vidu adaptor not found"), "invalid_api_platform", http.StatusBadRequest)
 	}
 
-	resp, err := adaptor.FetchTask(baseURL, apiKey, map[string]any{
+	fetchBody := map[string]any{
 		"task_id": originTask.GetUpstreamTaskID(),
 		"action":  originTask.Action,
-	}, channelModel.GetSetting().Proxy)
+	}
+	proxy := channelModel.GetSetting().Proxy
+	var resp *http.Response
+	if headerFetcher, ok := adaptor.(channel.TaskHeaderOverrideFetcher); ok {
+		headerOverride, err := channel.ResolveHeaderOverride(&relaycommon.RelayInfo{
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ApiKey:          apiKey,
+				HeadersOverride: channelModel.GetHeaderOverride(),
+			},
+		}, c)
+		if err != nil {
+			return service.TaskErrorWrapper(err, "channel_header_override_invalid", http.StatusBadRequest)
+		}
+		resp, err = headerFetcher.FetchTaskWithHeaderOverride(baseURL, apiKey, fetchBody, proxy, headerOverride)
+	} else {
+		resp, err = adaptor.FetchTask(baseURL, apiKey, fetchBody, proxy)
+	}
 	if err != nil {
 		return service.TaskErrorWrapper(err, "fetch_task_failed", http.StatusBadGateway)
 	}

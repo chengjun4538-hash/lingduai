@@ -205,6 +205,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	return a.fetchTask(baseUrl, key, body, proxy, nil)
+}
+
+func (a *TaskAdaptor) FetchTaskWithHeaderOverride(baseUrl, key string, body map[string]any, proxy string, headerOverride map[string]string) (*http.Response, error) {
+	return a.fetchTask(baseUrl, key, body, proxy, headerOverride)
+}
+
+func (a *TaskAdaptor) fetchTask(baseUrl, key string, body map[string]any, proxy string, headerOverride map[string]string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -219,6 +227,12 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Token "+key)
+	for key, value := range headerOverride {
+		req.Header.Set(key, value)
+		if strings.EqualFold(key, "Host") {
+			req.Host = value
+		}
+	}
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {

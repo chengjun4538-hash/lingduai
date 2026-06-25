@@ -546,6 +546,12 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
+	// 任务请求同样支持通道请求头覆盖，便于适配不同上游的鉴权约定。
+	headerOverride, err := processHeaderOverride(info, c)
+	if err != nil {
+		return nil, err
+	}
+	applyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)

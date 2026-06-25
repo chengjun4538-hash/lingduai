@@ -78,6 +78,10 @@ type TaskAdaptor interface {
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
 }
 
+type TaskHeaderOverrideFetcher interface {
+	FetchTaskWithHeaderOverride(baseUrl, key string, body map[string]any, proxy string, headerOverride map[string]string) (*http.Response, error)
+}
+
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -78,6 +79,55 @@ func TestRewriteNativeTaskID(t *testing.T) {
 	}
 	if payload["task_id"] != "task_public" {
 		t.Fatalf("task_id = %v, want task_public", payload["task_id"])
+	}
+}
+
+func TestFetchTaskWithHeaderOverride(t *testing.T) {
+	service.InitHttpClient()
+
+	type capturedRequest struct {
+		header http.Header
+		path   string
+	}
+	requestCh := make(chan capturedRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCh <- capturedRequest{
+			header: r.Header.Clone(),
+			path:   r.URL.Path,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"state":"success","creations":[]}`))
+	}))
+	defer server.Close()
+
+	adaptor := &TaskAdaptor{}
+	resp, err := adaptor.FetchTaskWithHeaderOverride(
+		server.URL,
+		"sk-test",
+		map[string]any{"task_id": "task_123"},
+		"",
+		map[string]string{
+			"Authorization": "Bearer sk-test",
+			"X-Upstream":    "yunwu",
+		},
+	)
+	if err != nil {
+		t.Fatalf("FetchTaskWithHeaderOverride returned error: %v", err)
+	}
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+
+	request := <-requestCh
+	if request.path != "/ent/v2/tasks/task_123/creations" {
+		t.Fatalf("path = %q, want /ent/v2/tasks/task_123/creations", request.path)
+	}
+	if request.header.Get("Authorization") != "Bearer sk-test" {
+		t.Fatalf("Authorization = %q, want Bearer sk-test", request.header.Get("Authorization"))
+	}
+	if request.header.Get("X-Upstream") != "yunwu" {
+		t.Fatalf("X-Upstream = %q, want yunwu", request.header.Get("X-Upstream"))
 	}
 }
 
