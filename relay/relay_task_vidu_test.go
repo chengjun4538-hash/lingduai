@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -139,5 +140,25 @@ func TestBuildViduDynamicPriceDataRejectsUnknownResolution(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for unknown resolution")
+	}
+}
+
+func TestRecalcQuotaFromRatiosUsesAdjustedViduUnitPrice(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		PriceData: types.PriceData{
+			Quota: 275000,
+			OtherRatios: map[string]float64{
+				"duration":        5,
+				"vidu_unit_price": 0.11,
+			},
+		},
+	}
+
+	quota := recalcQuotaFromRatios(info, map[string]float64{
+		"duration":        5,
+		"vidu_unit_price": 0.09,
+	})
+	if quota != 225000 {
+		t.Fatalf("quota = %d, want 225000", quota)
 	}
 }

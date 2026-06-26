@@ -19,6 +19,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/pkg/errors"
 )
@@ -166,6 +167,39 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	return nil
 }
 
+func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	var vResp responsePayload
+	if err := common.Unmarshal(taskData, &vResp); err != nil {
+		return nil
+	}
+	if strings.TrimSpace(vResp.Resolution) == "" {
+		return nil
+	}
+
+	duration := vResp.Duration
+	if duration <= 0 {
+		if info != nil && info.PriceData.OtherRatios != nil {
+			duration = int(info.PriceData.OtherRatios["duration"])
+		}
+	}
+	if duration <= 0 {
+		duration = 5
+	}
+
+	unitPrice, ok := ratio_setting.GetViduResolutionSecondPriceByModels(
+		viduSubmitPriceModelNames(info, vResp.Model),
+		vResp.Resolution,
+	)
+	if !ok {
+		return nil
+	}
+
+	return map[string]float64{
+		"duration":        float64(duration),
+		"vidu_unit_price": unitPrice,
+	}
+}
+
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
@@ -252,6 +286,17 @@ func (a *TaskAdaptor) GetChannelName() string {
 // ============================
 // helpers
 // ============================
+
+func viduSubmitPriceModelNames(info *relaycommon.RelayInfo, responseModel string) []string {
+	modelNames := make([]string, 0, 3)
+	if info != nil {
+		modelNames = append(modelNames, info.OriginModelName)
+		if info.ChannelMeta != nil {
+			modelNames = append(modelNames, info.UpstreamModelName)
+		}
+	}
+	return append(modelNames, responseModel)
+}
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*requestPayload, error) {
 	resolution := req.Resolution

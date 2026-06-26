@@ -257,6 +257,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 		// 基于调整后的 ratios 重新计算 quota
 		finalQuota = recalcQuotaFromRatios(info, adjustedRatios)
+		if unitPrice, ok := adjustedRatios["vidu_unit_price"]; ok {
+			info.PriceData.ModelPrice = unitPrice
+		}
 		info.PriceData.OtherRatios = adjustedRatios
 		info.PriceData.Quota = finalQuota
 	}

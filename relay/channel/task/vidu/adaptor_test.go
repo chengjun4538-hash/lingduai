@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -128,6 +129,50 @@ func TestFetchTaskWithHeaderOverride(t *testing.T) {
 	}
 	if request.header.Get("X-Upstream") != "yunwu" {
 		t.Fatalf("X-Upstream = %q, want yunwu", request.header.Get("X-Upstream"))
+	}
+}
+
+func TestAdjustBillingOnSubmitUsesUpstreamResolutionPrice(t *testing.T) {
+	oldModelPrice := ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		if err := ratio_setting.UpdateModelPriceByJSONString(oldModelPrice); err != nil {
+			t.Fatalf("restore model price: %v", err)
+		}
+	})
+
+	modelPrices := ratio_setting.GetModelPriceMap()
+	modelPrices[ratio_setting.ViduResolutionPriceKey("viduq3", "1080p")] = 0.11
+	modelPrices[ratio_setting.ViduResolutionPriceKey("viduq3", "720p")] = 0.09
+	data, err := common.Marshal(modelPrices)
+	if err != nil {
+		t.Fatalf("marshal model prices: %v", err)
+	}
+	if err := ratio_setting.UpdateModelPriceByJSONString(string(data)); err != nil {
+		t.Fatalf("update model price: %v", err)
+	}
+
+	taskData, err := common.Marshal(responsePayload{
+		Model:      "viduq3",
+		Duration:   5,
+		Resolution: "720p",
+	})
+	if err != nil {
+		t.Fatalf("marshal response payload: %v", err)
+	}
+
+	adaptor := &TaskAdaptor{}
+	ratios := adaptor.AdjustBillingOnSubmit(&relaycommon.RelayInfo{
+		OriginModelName: "viduq3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "viduq3",
+		},
+	}, taskData)
+
+	if ratios["duration"] != 5 {
+		t.Fatalf("duration ratio = %v, want 5", ratios["duration"])
+	}
+	if ratios["vidu_unit_price"] != 0.09 {
+		t.Fatalf("vidu_unit_price = %v, want 0.09", ratios["vidu_unit_price"])
 	}
 }
 
