@@ -262,7 +262,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
-	} else if c.Request.URL.Path == "/ent/v2/reference2video" {
+	} else if isNativeViduVideoSubmitPath(c.Request.URL.Path) {
 		relayMode := relayconstant.RelayModeVideoSubmit
 		req, err := getModelFromRequest(c)
 		if err != nil {
@@ -440,4 +440,16 @@ func extractModelNameFromGeminiPath(path string) string {
 
 	// 返回模型名部分
 	return path[startIndex : startIndex+colonIndex]
+}
+
+func isNativeViduVideoSubmitPath(path string) bool {
+	switch path {
+	case "/ent/v2/text2video",
+		"/ent/v2/img2video",
+		"/ent/v2/reference2video",
+		"/ent/v2/start-end2video":
+		return true
+	default:
+		return false
+	}
 }

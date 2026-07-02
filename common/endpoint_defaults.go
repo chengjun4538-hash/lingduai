@@ -25,7 +25,10 @@ var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeJinaRerank:            {Path: "/v1/rerank", Method: "POST"},
 	constant.EndpointTypeImageGeneration:       {Path: "/v1/images/generations", Method: "POST"},
 	constant.EndpointTypeEmbeddings:            {Path: "/v1/embeddings", Method: "POST"},
+	constant.EndpointTypeViduTextVideo:         {Path: "/ent/v2/text2video", Method: "POST"},
+	constant.EndpointTypeViduImageVideo:        {Path: "/ent/v2/img2video", Method: "POST"},
 	constant.EndpointTypeViduReferenceVideo:    {Path: "/ent/v2/reference2video", Method: "POST"},
+	constant.EndpointTypeViduStartEndVideo:     {Path: "/ent/v2/start-end2video", Method: "POST"},
 }
 
 // GetDefaultEndpointInfo 返回指定端点类型的默认信息以及是否存在

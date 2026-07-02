@@ -36,7 +36,10 @@ func SetVideoRouter(router *gin.Engine) {
 	{
 		viduSubmitRouter := viduRouter.Group("")
 		viduSubmitRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+		viduSubmitRouter.POST("/text2video", controller.RelayTask)
+		viduSubmitRouter.POST("/img2video", controller.RelayTask)
 		viduSubmitRouter.POST("/reference2video", controller.RelayTask)
+		viduSubmitRouter.POST("/start-end2video", controller.RelayTask)
 
 		viduFetchRouter := viduRouter.Group("")
 		viduFetchRouter.Use(middleware.TokenAuth())

@@ -86,8 +86,8 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if isNativeReference2VideoPath(c.Request.URL.Path) {
-		return a.validateNativeReference2Video(c, info)
+	if action, ok := nativeViduVideoAction(c.Request.URL.Path); ok {
+		return a.validateNativeViduVideo(c, info, action)
 	}
 
 	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
@@ -116,8 +116,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	if isNativeReference2VideoPath(c.Request.URL.Path) {
-		return a.buildNativeReference2VideoBody(c, info)
+	if isNativeViduVideoPath(c.Request.URL.Path) {
+		return a.buildNativeViduVideoBody(c, info)
 	}
 
 	v, exists := c.Get("task_request")
@@ -223,7 +223,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	if isNativeReference2VideoPath(c.Request.URL.Path) {
+	if isNativeViduVideoPath(c.Request.URL.Path) {
 		clientBody := rewriteNativeTaskID(responseBody, info.PublicTaskID)
 		c.Data(http.StatusOK, "application/json", clientBody)
 		return vResp.TaskId, responseBody, nil
@@ -286,6 +286,8 @@ func (a *TaskAdaptor) GetChannelName() string {
 // ============================
 // helpers
 // ============================
+
+const defaultViduDuration = 5
 
 func viduSubmitPriceModelNames(info *relaycommon.RelayInfo, responseModel string) []string {
 	modelNames := make([]string, 0, 3)
@@ -377,33 +379,57 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	return common.Marshal(openAIVideo)
 }
 
-func isNativeReference2VideoPath(path string) bool {
-	return path == "/ent/v2/reference2video"
+func nativeViduVideoAction(path string) (string, bool) {
+	switch path {
+	case "/ent/v2/text2video":
+		return constant.TaskActionTextGenerate, true
+	case "/ent/v2/img2video":
+		return constant.TaskActionGenerate, true
+	case "/ent/v2/reference2video":
+		return constant.TaskActionReferenceGenerate, true
+	case "/ent/v2/start-end2video":
+		return constant.TaskActionFirstTailGenerate, true
+	default:
+		return "", false
+	}
 }
 
-func (a *TaskAdaptor) validateNativeReference2Video(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+func isNativeViduVideoPath(path string) bool {
+	_, ok := nativeViduVideoAction(path)
+	return ok
+}
+
+func (a *TaskAdaptor) validateNativeViduVideo(c *gin.Context, info *relaycommon.RelayInfo, action string) *dto.TaskError {
 	if info.TaskRelayInfo == nil {
 		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
 	}
-	var req relaycommon.TaskSubmitReq
-	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+	var body map[string]any
+	if err := common.UnmarshalBodyReusable(c, &body); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
-	if strings.TrimSpace(req.Model) == "" {
+	modelName := stringFromAny(body["model"])
+	if strings.TrimSpace(modelName) == "" {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest)
 	}
-	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
-		req.Images = []string{req.Image}
+
+	req := relaycommon.TaskSubmitReq{
+		Model:      modelName,
+		Prompt:     stringFromAny(body["prompt"]),
+		Duration:   positiveIntOrDefault(body["duration"], defaultViduDuration),
+		Resolution: stringFromAny(body["resolution"]),
 	}
-	if req.Duration <= 0 {
-		req.Duration = 5
+	if images := stringSliceFromAny(body["images"]); len(images) > 0 {
+		req.Images = images
+	} else if image := strings.TrimSpace(stringFromAny(body["image"])); image != "" {
+		req.Images = []string{image}
 	}
-	info.Action = constant.TaskActionReferenceGenerate
+
+	info.Action = action
 	c.Set("task_request", req)
 	return nil
 }
 
-func (a *TaskAdaptor) buildNativeReference2VideoBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+func (a *TaskAdaptor) buildNativeViduVideoBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return nil, err
@@ -417,9 +443,9 @@ func (a *TaskAdaptor) buildNativeReference2VideoBody(c *gin.Context, info *relay
 		return nil, err
 	}
 	if _, ok := body["duration"]; !ok {
-		body["duration"] = 5
+		body["duration"] = defaultViduDuration
 	} else if duration, ok := asPositiveInt(body["duration"]); !ok || duration <= 0 {
-		body["duration"] = 5
+		body["duration"] = defaultViduDuration
 	}
 	if info.ChannelMeta != nil && info.UpstreamModelName != "" {
 		body["model"] = info.UpstreamModelName
@@ -429,6 +455,37 @@ func (a *TaskAdaptor) buildNativeReference2VideoBody(c *gin.Context, info *relay
 		return nil, err
 	}
 	return bytes.NewReader(out), nil
+}
+
+func positiveIntOrDefault(v any, defaultValue int) int {
+	if i, ok := asPositiveInt(v); ok && i > 0 {
+		return i
+	}
+	return defaultValue
+}
+
+func stringFromAny(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func stringSliceFromAny(v any) []string {
+	values, ok := v.([]any)
+	if !ok {
+		if stringsSlice, ok := v.([]string); ok {
+			return stringsSlice
+		}
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if s := stringFromAny(value); s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 func asPositiveInt(v any) (int, bool) {

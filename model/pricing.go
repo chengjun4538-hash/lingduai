@@ -349,11 +349,23 @@ func updatePricing() {
 
 func isViduPricingModel(modelName string, endpoints []constant.EndpointType) bool {
 	for _, endpoint := range endpoints {
-		if endpoint == constant.EndpointTypeViduReferenceVideo {
+		if isViduVideoEndpoint(endpoint) {
 			return true
 		}
 	}
 	return strings.Contains(strings.ToLower(modelName), "vidu")
+}
+
+func isViduVideoEndpoint(endpoint constant.EndpointType) bool {
+	switch endpoint {
+	case constant.EndpointTypeViduTextVideo,
+		constant.EndpointTypeViduImageVideo,
+		constant.EndpointTypeViduReferenceVideo,
+		constant.EndpointTypeViduStartEndVideo:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetSupportedEndpointMap 返回全局端点到路径的映射

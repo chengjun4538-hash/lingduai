@@ -15,15 +15,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestNativeReference2VideoRequestDefaultsDuration(t *testing.T) {
+func TestNativeViduVideoRequestDefaultsDuration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	c := newNativeViduContext(`{"model":"viduq3","images":["https://example.com/a.png"],"resolution":"720p"}`)
+	c := newNativeViduContext("/ent/v2/reference2video", `{"model":"viduq3","images":["https://example.com/a.png"],"resolution":"720p"}`)
 	info := &relaycommon.RelayInfo{}
 	adaptor := &TaskAdaptor{}
 
-	if taskErr := adaptor.validateNativeReference2Video(c, info); taskErr != nil {
-		t.Fatalf("validateNativeReference2Video returned error: %v", taskErr)
+	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction returned error: %v", taskErr)
 	}
 	if info.Action != constant.TaskActionReferenceGenerate {
 		t.Fatalf("action = %q, want %q", info.Action, constant.TaskActionReferenceGenerate)
@@ -40,16 +40,76 @@ func TestNativeReference2VideoRequestDefaultsDuration(t *testing.T) {
 	}
 }
 
-func TestBuildNativeReference2VideoBodyPreservesFields(t *testing.T) {
+func TestNativeViduVideoActions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	c := newNativeViduContext(`{"model":"viduq3","images":["https://example.com/a.png"],"resolution":"540p","duration":0,"movement_amplitude":"auto"}`)
+	tests := []struct {
+		path       string
+		wantAction string
+		wantPath   string
+	}{
+		{path: "/ent/v2/text2video", wantAction: constant.TaskActionTextGenerate, wantPath: "https://vidu.example/ent/v2/text2video"},
+		{path: "/ent/v2/img2video", wantAction: constant.TaskActionGenerate, wantPath: "https://vidu.example/ent/v2/img2video"},
+		{path: "/ent/v2/reference2video", wantAction: constant.TaskActionReferenceGenerate, wantPath: "https://vidu.example/ent/v2/reference2video"},
+		{path: "/ent/v2/start-end2video", wantAction: constant.TaskActionFirstTailGenerate, wantPath: "https://vidu.example/ent/v2/start-end2video"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			c := newNativeViduContext(tt.path, `{"model":"viduq3","duration":3,"resolution":"720p"}`)
+			info := &relaycommon.RelayInfo{}
+			adaptor := &TaskAdaptor{}
+
+			if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+				t.Fatalf("ValidateRequestAndSetAction returned error: %v", taskErr)
+			}
+			if info.Action != tt.wantAction {
+				t.Fatalf("action = %q, want %q", info.Action, tt.wantAction)
+			}
+			adaptor.baseURL = "https://vidu.example"
+			url, err := adaptor.BuildRequestURL(info)
+			if err != nil {
+				t.Fatalf("BuildRequestURL returned error: %v", err)
+			}
+			if url != tt.wantPath {
+				t.Fatalf("url = %q, want %q", url, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestNativeViduVideoRequestAllowsObjectImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	c := newNativeViduContext("/ent/v2/start-end2video", `{"model":"viduq3","images":[{"url":"https://example.com/a.png"},{"url":"https://example.com/b.png"}],"duration":3,"resolution":"720p"}`)
+	info := &relaycommon.RelayInfo{}
+	adaptor := &TaskAdaptor{}
+
+	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction returned error: %v", taskErr)
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		t.Fatalf("GetTaskRequest returned error: %v", err)
+	}
+	if req.Duration != 3 {
+		t.Fatalf("duration = %d, want 3", req.Duration)
+	}
+	if req.Resolution != "720p" {
+		t.Fatalf("resolution = %q, want 720p", req.Resolution)
+	}
+}
+
+func TestBuildNativeViduVideoBodyPreservesFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	c := newNativeViduContext("/ent/v2/img2video", `{"model":"viduq3","images":["https://example.com/a.png"],"resolution":"540p","duration":0,"movement_amplitude":"auto","bgm":false}`)
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "viduq3"}}
 	adaptor := &TaskAdaptor{}
 
-	bodyReader, err := adaptor.buildNativeReference2VideoBody(c, info)
+	bodyReader, err := adaptor.buildNativeViduVideoBody(c, info)
 	if err != nil {
-		t.Fatalf("buildNativeReference2VideoBody returned error: %v", err)
+		t.Fatalf("buildNativeViduVideoBody returned error: %v", err)
 	}
 	body, err := io.ReadAll(bodyReader)
 	if err != nil {
@@ -65,6 +125,9 @@ func TestBuildNativeReference2VideoBodyPreservesFields(t *testing.T) {
 	}
 	if payload["movement_amplitude"] != "auto" {
 		t.Fatalf("movement_amplitude = %v, want auto", payload["movement_amplitude"])
+	}
+	if payload["bgm"] != false {
+		t.Fatalf("bgm = %v, want false", payload["bgm"])
 	}
 	if payload["model"] != "viduq3" {
 		t.Fatalf("model = %v, want viduq3", payload["model"])
@@ -176,10 +239,10 @@ func TestAdjustBillingOnSubmitUsesUpstreamResolutionPrice(t *testing.T) {
 	}
 }
 
-func newNativeViduContext(body string) *gin.Context {
+func newNativeViduContext(path string, body string) *gin.Context {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/ent/v2/reference2video", strings.NewReader(body))
+	c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	return c
 }
