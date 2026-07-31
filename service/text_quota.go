@@ -363,6 +363,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_ratio"] = summary.ImageRatio
 		other["image_output"] = summary.ImageTokens
 	}
+	if relayInfo.PriceData.ImageResolution != "" {
+		other["image_resolution"] = strings.ToUpper(relayInfo.PriceData.ImageResolution)
+		other["image_pixels"] = relayInfo.PriceData.ImagePixels
+		other["image_unit_price"] = relayInfo.PriceData.ModelPrice
+	}
 	if summary.WebSearchCallCount > 0 {
 		other["web_search"] = true
 		other["web_search_call_count"] = summary.WebSearchCallCount

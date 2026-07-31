@@ -645,6 +645,32 @@ export const calculateModelPrice = ({
     }
   }
 
+  const imageResolutionPrices = Array.isArray(record.image_resolution_prices)
+    ? record.image_resolution_prices
+        .map((item) => {
+          const rawPrice = Number(item?.model_price);
+          if (!Number.isFinite(rawPrice)) {
+            return null;
+          }
+          return {
+            resolution: String(item?.resolution || '').toUpperCase(),
+            price: displayPrice(rawPrice * usedGroupRatio),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  if (imageResolutionPrices.length > 0) {
+    return {
+      imageResolutionPrices,
+      isImagePerResolution: true,
+      isPerToken: false,
+      isTokensDisplay: false,
+      usedGroup,
+      usedGroupRatio,
+    };
+  }
+
   const viduResolutionPrices = Array.isArray(record.vidu_resolution_prices)
     ? record.vidu_resolution_prices
         .map((item) => {
@@ -790,6 +816,15 @@ export const calculateModelPrice = ({
 };
 
 export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
+  if (priceData.isImagePerResolution) {
+    return priceData.imageResolutionPrices.map((item) => ({
+      key: `image-${item.resolution}`,
+      label: item.resolution,
+      value: item.price,
+      suffix: ` / ${t('张')}`,
+    }));
+  }
+
   if (priceData.isViduPerSecond) {
     return priceData.viduResolutionPrices.map((item) => ({
       key: `vidu-${item.resolution}`,

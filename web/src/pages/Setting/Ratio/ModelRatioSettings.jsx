@@ -146,10 +146,10 @@ export default function ModelRatioSettings(props) {
             <Form.TextArea
               label={t('模型固定价格')}
               extraText={t(
-                '一次调用消耗多少刀，优先级大于模型倍率；Vidu 参考生视频可用“模型名:清晰度”配置每秒价格',
+                '一次调用消耗多少刀，优先级大于模型倍率；Vidu 可用“模型名:清晰度”配置每秒价格，生图和图片编辑可用“模型名:分辨率档位”配置每张价格',
               )}
               placeholder={t(
-                '为一个 JSON 文本，键为模型名称，值为一次调用消耗多少刀，比如 "gpt-4-gizmo-*": 0.1；Vidu 每秒价格示例："viduq3:1080p": 1.25',
+                '为一个 JSON 文本，键为模型名称，值为一次调用消耗多少刀，比如 "gpt-4-gizmo-*": 0.1；Vidu 示例："viduq3:1080p": 1.25；图片示例："image-model:1k": 0.02',
               )}
               field={'ModelPrice'}
               autosize={{ minRows: 6, maxRows: 12 }}

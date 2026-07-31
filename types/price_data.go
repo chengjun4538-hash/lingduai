@@ -21,6 +21,8 @@ type PriceData struct {
 	AudioRatio           float64
 	AudioCompletionRatio float64
 	OtherRatios          map[string]float64
+	ImageResolution      string // 生图/图片编辑输出分辨率计费档位
+	ImagePixels          int64  // 请求明确指定宽高时的总像素
 	UsePrice             bool
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度

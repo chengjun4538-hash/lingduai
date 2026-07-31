@@ -2,11 +2,14 @@ package helper
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -63,6 +66,35 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	imageResolution := ""
+	var imagePixels int64
+	imageCount := uint(1)
+	useImageResolutionPrice := false
+
+	if imageRequest, ok := info.Request.(*dto.ImageRequest); ok &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
+		ratio_setting.HasImageResolutionPrice(info.OriginModelName) {
+		var err error
+		imageResolution, imagePixels, err = ratio_setting.ClassifyImageResolution(imageRequest.Size)
+		if err != nil {
+			return types.PriceData{}, err
+		}
+		var found bool
+		modelPrice, found = ratio_setting.GetImageResolutionPrice(info.OriginModelName, imageResolution)
+		if !found {
+			return types.PriceData{}, fmt.Errorf(
+				"模型 %s 未配置 %s 图片价格，请配置 %s",
+				info.OriginModelName,
+				strings.ToUpper(imageResolution),
+				ratio_setting.ImageResolutionPriceKey(info.OriginModelName, imageResolution),
+			)
+		}
+		if imageRequest.N != nil && *imageRequest.N > 0 {
+			imageCount = *imageRequest.N
+		}
+		usePrice = true
+		useImageResolutionPrice = true
+	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
@@ -106,10 +138,13 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		ratio := modelRatio * groupRatioInfo.GroupRatio
 		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
 	} else {
-		if meta.ImagePriceRatio != 0 {
+		if !useImageResolutionPrice && meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		if useImageResolutionPrice {
+			preConsumedQuota *= int(imageCount)
+		}
 	}
 
 	// check if free model pre-consume is disabled
@@ -146,6 +181,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		ImageResolution:      imageResolution,
+		ImagePixels:          imagePixels,
+	}
+	if useImageResolutionPrice {
+		priceData.AddOtherRatio("n", float64(imageCount))
 	}
 
 	if common.DebugEnabled {

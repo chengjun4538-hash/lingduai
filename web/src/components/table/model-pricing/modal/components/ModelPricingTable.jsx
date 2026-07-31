@@ -46,6 +46,9 @@ const ModelPricingTable = ({
   const isViduPerSecond =
     Array.isArray(modelData?.vidu_resolution_prices) &&
     modelData.vidu_resolution_prices.length > 0;
+  const isImagePerResolution =
+    Array.isArray(modelData?.image_resolution_prices) &&
+    modelData.image_resolution_prices.length > 0;
   const renderGroupPriceTable = () => {
     // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
@@ -76,13 +79,15 @@ const ModelPricingTable = ({
         key: group,
         group: group,
         ratio: groupRatioValue,
-        billingType: isViduPerSecond
-          ? t('按秒计费')
-          : modelData?.quota_type === 0
-            ? t('按量计费')
-            : modelData?.quota_type === 1
-              ? t('按次计费')
-              : '-',
+        billingType: isImagePerResolution
+          ? t('按张计费')
+          : isViduPerSecond
+            ? t('按秒计费')
+            : modelData?.quota_type === 0
+              ? t('按量计费')
+              : modelData?.quota_type === 1
+                ? t('按次计费')
+                : '-',
         priceItems: getModelPriceItems(priceData, t, siteDisplayType),
       };
     });
@@ -123,6 +128,7 @@ const ModelPricingTable = ({
         if (text === t('按量计费')) color = 'violet';
         else if (text === t('按次计费')) color = 'teal';
         else if (text === t('按秒计费')) color = 'orange';
+        else if (text === t('按张计费')) color = 'blue';
         return (
           <Tag color={color} size='small' shape='circle'>
             {text || '-'}
