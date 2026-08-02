@@ -5,11 +5,9 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -68,32 +66,41 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 	imageResolution := ""
 	var imagePixels int64
-	imageCount := uint(1)
+	imageCount := 1
 	useImageResolutionPrice := false
 
-	if imageRequest, ok := info.Request.(*dto.ImageRequest); ok &&
-		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
-		ratio_setting.HasImageResolutionPrice(info.OriginModelName) {
-		var err error
-		imageResolution, imagePixels, err = ratio_setting.ClassifyImageResolution(imageRequest.Size)
+	if ratio_setting.HasImageResolutionPrice(info.OriginModelName) {
+		imagePricing, applicable, err := resolveImagePricingRequest(info)
 		if err != nil {
 			return types.PriceData{}, err
 		}
-		var found bool
-		modelPrice, found = ratio_setting.GetImageResolutionPrice(info.OriginModelName, imageResolution)
-		if !found {
-			return types.PriceData{}, fmt.Errorf(
-				"模型 %s 未配置 %s 图片价格，请配置 %s",
-				info.OriginModelName,
-				strings.ToUpper(imageResolution),
-				ratio_setting.ImageResolutionPriceKey(info.OriginModelName, imageResolution),
-			)
+		if applicable {
+			imageResolution = imagePricing.Resolution
+			imagePixels = imagePricing.Pixels
+			imageCount = imagePricing.Count
+
+			if imageResolution != "" {
+				var found bool
+				modelPrice, found = ratio_setting.GetImageResolutionPrice(info.OriginModelName, imageResolution)
+				if !found {
+					return types.PriceData{}, fmt.Errorf(
+						"模型 %s 未配置 %s 图片价格，请配置 %s",
+						info.OriginModelName,
+						strings.ToUpper(imageResolution),
+						ratio_setting.ImageResolutionPriceKey(info.OriginModelName, imageResolution),
+					)
+				}
+			} else if !usePrice {
+				return types.PriceData{}, fmt.Errorf(
+					"模型 %s 未传图片尺寸且默认价格未配置，请配置 %s 的固定价格",
+					info.OriginModelName,
+					info.OriginModelName,
+				)
+			}
+
+			usePrice = true
+			useImageResolutionPrice = true
 		}
-		if imageRequest.N != nil && *imageRequest.N > 0 {
-			imageCount = *imageRequest.N
-		}
-		usePrice = true
-		useImageResolutionPrice = true
 	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
@@ -143,7 +150,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		if useImageResolutionPrice {
-			preConsumedQuota *= int(imageCount)
+			preConsumedQuota *= imageCount
 		}
 	}
 
