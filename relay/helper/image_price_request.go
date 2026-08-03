@@ -11,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
+const chatImageDefaultResolution = "2k"
+
 type imagePricingRequest struct {
 	Resolution string
 	Pixels     int64
@@ -70,6 +72,8 @@ func resolveImagePricingRequest(info *relaycommon.RelayInfo) (imagePricingReques
 			result.Count = *request.N
 		}
 		if len(candidates) == 0 {
+			// Chat Completions 生图上游未传尺寸时默认生成 2048×2048。
+			result.Resolution = chatImageDefaultResolution
 			return result, true, nil
 		}
 

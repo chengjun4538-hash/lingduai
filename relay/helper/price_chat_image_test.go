@@ -17,7 +17,7 @@ import (
 
 func TestModelPriceHelperUsesChatImageResolutionPrices(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	defaultPrice := 0.04
+	defaultPrice := 0.99
 	prepareChatImagePricingTest(t, "chat-image-model", &defaultPrice)
 
 	tests := []struct {
@@ -114,16 +114,13 @@ func TestModelPriceHelperUsesChatImageResolutionPrices(t *testing.T) {
 	}
 }
 
-func TestModelPriceHelperUsesDefaultPriceWhenChatImageSizeMissing(t *testing.T) {
+func TestModelPriceHelperUsesTwoKPriceWhenChatImageSizeMissing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	defaultPrice := 0.04
-	prepareChatImagePricingTest(t, "chat-image-model", &defaultPrice)
+	prepareChatImagePricingTest(t, "chat-image-model", nil)
 
 	request := &dto.GeneralOpenAIRequest{
-		Model:     "chat-image-model",
-		N:         common.GetPointer(2),
-		Size:      "16:9",
-		ImageSize: common.GetPointer("auto"),
+		Model: "chat-image-model",
+		N:     common.GetPointer(2),
 	}
 	info := newChatImagePricingRelayInfo(request)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -133,11 +130,11 @@ func TestModelPriceHelperUsesDefaultPriceWhenChatImageSizeMissing(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ModelPriceHelper() error = %v", err)
 	}
-	if priceData.ImageResolution != "" {
-		t.Fatalf("ImageResolution = %q, want empty", priceData.ImageResolution)
+	if priceData.ImageResolution != "2k" {
+		t.Fatalf("ImageResolution = %q, want 2k", priceData.ImageResolution)
 	}
-	if priceData.ModelPrice != defaultPrice {
-		t.Fatalf("ModelPrice = %v, want %v", priceData.ModelPrice, defaultPrice)
+	if priceData.ModelPrice != 0.04 {
+		t.Fatalf("ModelPrice = %v, want 0.04", priceData.ModelPrice)
 	}
 	if priceData.QuotaToPreConsume != 40_000 {
 		t.Fatalf("QuotaToPreConsume = %d, want 40000", priceData.QuotaToPreConsume)
@@ -164,21 +161,6 @@ func TestModelPriceHelperRejectsChatImageResolutionConflicts(t *testing.T) {
 	_, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
 	if err == nil || !strings.Contains(err.Error(), "图片计费分辨率字段冲突") {
 		t.Fatalf("ModelPriceHelper() error = %v, want conflict error", err)
-	}
-}
-
-func TestModelPriceHelperRequiresDefaultPriceWhenChatImageSizeMissing(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	prepareChatImagePricingTest(t, "chat-image-model", nil)
-
-	request := &dto.GeneralOpenAIRequest{Model: "chat-image-model"}
-	info := newChatImagePricingRelayInfo(request)
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-
-	_, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
-	if err == nil || !strings.Contains(err.Error(), "默认价格未配置") {
-		t.Fatalf("ModelPriceHelper() error = %v, want missing default price error", err)
 	}
 }
 

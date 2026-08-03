@@ -90,12 +90,6 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 						ratio_setting.ImageResolutionPriceKey(info.OriginModelName, imageResolution),
 					)
 				}
-			} else if !usePrice {
-				return types.PriceData{}, fmt.Errorf(
-					"模型 %s 未传图片尺寸且默认价格未配置，请配置 %s 的固定价格",
-					info.OriginModelName,
-					info.OriginModelName,
-				)
 			}
 
 			usePrice = true
