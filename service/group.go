@@ -37,6 +37,12 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 			groupsCopy[userGroup] = "用户分组"
 		}
 	}
+	// 开启默认自动分组后，令牌和请求校验都应允许使用 auto。
+	if setting.DefaultUseAutoGroup {
+		if _, ok := groupsCopy["auto"]; !ok {
+			groupsCopy["auto"] = setting.GetUsableGroupDescription("auto")
+		}
+	}
 	return groupsCopy
 }
 
