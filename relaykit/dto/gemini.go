@@ -18,7 +18,21 @@ type GeminiChatRequest struct {
 	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
 	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
 	CachedContent      string                     `json:"cachedContent,omitempty"`
+	// Extra 保留 Gemini 兼容上游定义的顶层扩展参数，避免中转时静默丢失。
+	Extra map[string]json.RawMessage `json:"-"`
 }
+
+var geminiChatRequestKnownJSONFields = newJSONFieldSet(
+	"requests",
+	"contents",
+	"safetySettings",
+	"generationConfig",
+	"tools",
+	"toolConfig",
+	"systemInstruction",
+	"system_instruction",
+	"cachedContent",
+)
 
 // UnmarshalJSON allows GeminiChatRequest to accept both snake_case and camelCase fields.
 func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
@@ -38,7 +52,19 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 		r.SystemInstructions = aux.SystemInstructionSnake
 	}
 
+	var rawFields map[string]json.RawMessage
+	if err := kitutil.Unmarshal(data, &rawFields); err != nil {
+		return err
+	}
+	r.Extra = collectUnknownJSONFields(rawFields, geminiChatRequestKnownJSONFields)
+
 	return nil
+}
+
+// MarshalJSON 将未知扩展参数平铺回请求顶层，已知字段始终以 DTO 的最终值为准。
+func (r GeminiChatRequest) MarshalJSON() ([]byte, error) {
+	type Alias GeminiChatRequest
+	return marshalJSONWithExtraFields(Alias(r), r.Extra, geminiChatRequestKnownJSONFields)
 }
 
 type ToolConfig struct {
@@ -348,7 +374,49 @@ type GeminiChatGenerationConfig struct {
 	ThinkingConfig             *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	SpeechConfig               json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
 	ImageConfig                json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
+	// Extra 保留兼容上游在 generationConfig 中新增的配置项。
+	Extra map[string]json.RawMessage `json:"-"`
 }
+
+var geminiChatGenerationConfigKnownJSONFields = newJSONFieldSet(
+	"temperature",
+	"topP",
+	"top_p",
+	"topK",
+	"top_k",
+	"maxOutputTokens",
+	"max_output_tokens",
+	"candidateCount",
+	"candidate_count",
+	"stopSequences",
+	"stop_sequences",
+	"responseMimeType",
+	"response_mime_type",
+	"responseSchema",
+	"response_schema",
+	"responseJsonSchema",
+	"response_json_schema",
+	"presencePenalty",
+	"presence_penalty",
+	"frequencyPenalty",
+	"frequency_penalty",
+	"responseLogprobs",
+	"response_logprobs",
+	"logprobs",
+	"enableEnhancedCivicAnswers",
+	"enable_enhanced_civic_answers",
+	"mediaResolution",
+	"media_resolution",
+	"seed",
+	"responseModalities",
+	"response_modalities",
+	"thinkingConfig",
+	"thinking_config",
+	"speechConfig",
+	"speech_config",
+	"imageConfig",
+	"image_config",
+)
 
 // UnmarshalJSON allows GeminiChatGenerationConfig to accept both snake_case and camelCase fields.
 func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
@@ -433,7 +501,62 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 		c.ImageConfig = aux.ImageConfigSnake
 	}
 
+	var rawFields map[string]json.RawMessage
+	if err := kitutil.Unmarshal(data, &rawFields); err != nil {
+		return err
+	}
+	c.Extra = collectUnknownJSONFields(rawFields, geminiChatGenerationConfigKnownJSONFields)
+
 	return nil
+}
+
+// MarshalJSON 将未知配置项平铺回 generationConfig，已知配置项保持规范字段名。
+func (c GeminiChatGenerationConfig) MarshalJSON() ([]byte, error) {
+	type Alias GeminiChatGenerationConfig
+	return marshalJSONWithExtraFields(Alias(c), c.Extra, geminiChatGenerationConfigKnownJSONFields)
+}
+
+func newJSONFieldSet(fields ...string) map[string]struct{} {
+	set := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		set[field] = struct{}{}
+	}
+	return set
+}
+
+func collectUnknownJSONFields(rawFields map[string]json.RawMessage, knownFields map[string]struct{}) map[string]json.RawMessage {
+	var extra map[string]json.RawMessage
+	for field, value := range rawFields {
+		if _, known := knownFields[field]; known {
+			continue
+		}
+		if extra == nil {
+			extra = make(map[string]json.RawMessage)
+		}
+		extra[field] = value
+	}
+	return extra
+}
+
+func marshalJSONWithExtraFields(base any, extra map[string]json.RawMessage, knownFields map[string]struct{}) ([]byte, error) {
+	data, err := kitutil.Marshal(base)
+	if err != nil {
+		return nil, err
+	}
+
+	var fields map[string]json.RawMessage
+	if err := kitutil.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	for field, value := range extra {
+		if _, known := knownFields[field]; known {
+			continue
+		}
+		if _, exists := fields[field]; !exists {
+			fields[field] = value
+		}
+	}
+	return kitutil.Marshal(fields)
 }
 
 type MediaResolution string
