@@ -16,6 +16,10 @@ const (
 	EndpointTypeImageGeneration       EndpointType = "image-generation"
 	EndpointTypeEmbeddings            EndpointType = "embeddings"
 	EndpointTypeOpenAIVideo           EndpointType = "openai-video"
+	EndpointTypeViduTextVideo         EndpointType = "vidu-text-video"
+	EndpointTypeViduImageVideo        EndpointType = "vidu-image-video"
+	EndpointTypeViduReferenceVideo    EndpointType = "vidu-reference-video"
+	EndpointTypeViduStartEndVideo     EndpointType = "vidu-start-end-video"
 )
 
 // Finish reasons shared by the OpenAI-compatible response formats.

@@ -34,6 +34,10 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+type taskPollingHeaderOverrideFetcher interface {
+	FetchTaskWithHeaderOverride(baseURL, key string, body map[string]any, proxy string, headerOverride map[string]string) (*http.Response, error)
+}
+
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
@@ -459,10 +463,18 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
+	fetchBody := map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,
-	}, proxy)
+	}
+	var resp *http.Response
+	var err error
+	if headerFetcher, ok := adaptor.(taskPollingHeaderOverrideFetcher); ok {
+		headerOverride := resolveTaskPollingHeaderOverride(ch.GetHeaderOverride(), key)
+		resp, err = headerFetcher.FetchTaskWithHeaderOverride(baseURL, key, fetchBody, proxy, headerOverride)
+	} else {
+		resp, err = adaptor.FetchTask(baseURL, key, fetchBody, proxy)
+	}
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
@@ -599,6 +611,26 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	return nil
+}
+
+func resolveTaskPollingHeaderOverride(source map[string]interface{}, apiKey string) map[string]string {
+	headerOverride := make(map[string]string)
+	for headerName, rawValue := range source {
+		headerName = strings.TrimSpace(headerName)
+		if headerName == "" {
+			continue
+		}
+		value, ok := rawValue.(string)
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(strings.ReplaceAll(value, "{api_key}", apiKey))
+		if value == "" {
+			continue
+		}
+		headerOverride[headerName] = value
+	}
+	return headerOverride
 }
 
 func redactVideoResponseBody(body []byte) []byte {

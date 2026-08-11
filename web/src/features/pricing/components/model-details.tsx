@@ -68,7 +68,12 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  formatFixedPrice,
+  formatGroupPrice,
+  formatResolutionPrice,
+  getResolutionPricing,
+} from '../lib/price'
 import type {
   ModelCapability,
   PriceType,
@@ -585,6 +590,7 @@ function PriceSection(props: {
     usdExchangeRate: props.usdExchangeRate,
     groupRatioMultiplier: 1,
   })
+  const resolutionPricing = getResolutionPricing(props.model)
 
   const primaryPriceTypes: { label: string; type: PriceType }[] = [
     { label: t('Input'), type: 'input' },
@@ -698,6 +704,40 @@ function PriceSection(props: {
             </div>
           </div>
         )}
+      </section>
+    )
+  }
+
+  if (resolutionPricing) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <div className='grid grid-cols-2 gap-2 sm:grid-cols-3'>
+          {resolutionPricing.prices.map((item) => (
+            <div
+              key={item.resolution}
+              className='bg-muted/20 rounded-lg border p-3'
+            >
+              <div className='text-muted-foreground text-xs'>
+                {item.resolution.toUpperCase()}
+              </div>
+              <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                {formatResolutionPrice(
+                  props.model,
+                  item,
+                  props.showRechargePrice,
+                  props.priceRate,
+                  props.usdExchangeRate
+                )}
+                <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                  {resolutionPricing.unit === 'image'
+                    ? t('Per image')
+                    : t('Per second')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
     )
   }

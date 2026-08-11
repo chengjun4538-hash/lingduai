@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { formatCurrencyFromUSD } from '@/lib/currency'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
-import type { PricingModel, TokenUnit, PriceType } from '../types'
+import type {
+  PricingModel,
+  ResolutionPrice,
+  TokenUnit,
+  PriceType,
+} from '../types'
 import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
 
 // ----------------------------------------------------------------------------
@@ -136,6 +141,46 @@ function applyRechargeRate(
 ): number {
   if (!showWithRecharge) return price
   return (price * priceRate) / usdExchangeRate
+}
+
+export type ResolutionPricing = {
+  prices: ResolutionPrice[]
+  unit: 'image' | 'second'
+}
+
+export function getResolutionPricing(
+  model: PricingModel
+): ResolutionPricing | null {
+  if (model.image_resolution_prices?.length) {
+    return { prices: model.image_resolution_prices, unit: 'image' }
+  }
+  if (model.vidu_resolution_prices?.length) {
+    return { prices: model.vidu_resolution_prices, unit: 'second' }
+  }
+  return null
+}
+
+export function formatResolutionPrice(
+  model: PricingModel,
+  price: ResolutionPrice,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  selectedGroup?: string
+): string {
+  const groupRatio = getDisplayGroupRatio(model, selectedGroup)
+  const priceInUSD = applyRechargeRate(
+    price.model_price * groupRatio,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+
+  return formatCurrencyFromUSD(priceInUSD, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
 }
 
 /**

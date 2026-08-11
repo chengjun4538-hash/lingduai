@@ -80,6 +80,35 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
+	imageResolution := ""
+	var imagePixels int64
+	imageCount := 1
+	useImageResolutionPrice := false
+	if ratio_setting.HasImageResolutionPrice(info.OriginModelName) {
+		imagePricing, applicable, err := resolveImagePricingRequest(info)
+		if err != nil {
+			return hosttypes.PriceData{}, err
+		}
+		if applicable {
+			imageResolution = imagePricing.Resolution
+			imagePixels = imagePricing.Pixels
+			imageCount = imagePricing.Count
+
+			var found bool
+			modelPrice, found = ratio_setting.GetImageResolutionPrice(info.OriginModelName, imageResolution)
+			if !found {
+				return hosttypes.PriceData{}, fmt.Errorf(
+					"模型 %s 未配置 %s 图片价格，请配置 %s",
+					info.OriginModelName,
+					strings.ToUpper(imageResolution),
+					ratio_setting.ImageResolutionPriceKey(info.OriginModelName, imageResolution),
+				)
+			}
+			usePrice = true
+			useImageResolutionPrice = true
+		}
+	}
+
 	var preConsumedQuota int
 	var modelRatio float64
 	var completionRatio float64
@@ -124,7 +153,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		preConsumedQuota = quota
 	} else {
-		if meta.ImagePriceRatio != 0 {
+		if !useImageResolutionPrice && meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 	}
@@ -163,10 +192,15 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation5mRatio: cacheCreationRatio5m,
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
+		ImageResolution:      imageResolution,
+		ImagePixels:          imagePixels,
 	}
 	if usePrice {
 		for name, ratio := range meta.BillingRatios {
 			priceData.AddOtherRatio(name, ratio)
+		}
+		if useImageResolutionPrice {
+			priceData.AddOtherRatio("n", float64(imageCount))
 		}
 		quotaToPreConsume := priceData.ApplyOtherRatiosToFloat(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		quota, err := common.QuotaFromFloatStrict(quotaToPreConsume)

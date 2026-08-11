@@ -17,4 +17,8 @@ const (
 	EndpointTypeImageGeneration       = types.EndpointTypeImageGeneration
 	EndpointTypeEmbeddings            = types.EndpointTypeEmbeddings
 	EndpointTypeOpenAIVideo           = types.EndpointTypeOpenAIVideo
+	EndpointTypeViduTextVideo         = types.EndpointTypeViduTextVideo
+	EndpointTypeViduImageVideo        = types.EndpointTypeViduImageVideo
+	EndpointTypeViduReferenceVideo    = types.EndpointTypeViduReferenceVideo
+	EndpointTypeViduStartEndVideo     = types.EndpointTypeViduStartEndVideo
 )

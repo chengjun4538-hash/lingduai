@@ -139,6 +139,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if len(request.Size) > 0 {
 		logContent = append(logContent, fmt.Sprintf("大小 %s", request.Size))
 	}
+	if info.PriceData.ImageResolution != "" {
+		logContent = append(logContent, fmt.Sprintf(
+			"计费档位 %s，单价 %.6f/张",
+			strings.ToUpper(info.PriceData.ImageResolution),
+			info.PriceData.ModelPrice,
+		))
+	}
 	if len(quality) > 0 {
 		logContent = append(logContent, fmt.Sprintf("品质 %s", quality))
 	}

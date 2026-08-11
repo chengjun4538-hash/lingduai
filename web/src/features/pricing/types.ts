@@ -27,6 +27,11 @@ export type PricingVendor = {
   description?: string
 }
 
+export type ResolutionPrice = {
+  resolution: string
+  model_price: number
+}
+
 export type PricingModel = {
   id: number
   model_name: string
@@ -56,6 +61,10 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  /** Image generation prices keyed by 1K/2K/4K resolution tiers. */
+  image_resolution_prices?: ResolutionPrice[]
+  /** Vidu generation prices per second, keyed by output resolution. */
+  vidu_resolution_prices?: ResolutionPrice[]
   /**
    * Optional model metadata fields reserved for backend-provided catalog data.
    * Keep them data-driven; do not synthesize display values on the client.

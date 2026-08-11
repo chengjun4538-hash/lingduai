@@ -485,6 +485,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["image_ratio"] = summary.ImageRatio
 		other["image_output"] = summary.ImageTokens
 	}
+	if relayInfo.PriceData.ImageResolution != "" {
+		other["image_resolution"] = strings.ToUpper(relayInfo.PriceData.ImageResolution)
+		other["image_pixels"] = relayInfo.PriceData.ImagePixels
+		other["image_unit_price"] = relayInfo.PriceData.ModelPrice
+	}
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {
 		other["audio_input_seperate_price"] = true

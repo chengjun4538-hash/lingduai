@@ -31,7 +31,12 @@ import {
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatPrice,
+  formatRequestPrice,
+  formatResolutionPrice,
+  getResolutionPricing,
+} from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -66,6 +71,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
   const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
+  const resolutionPricing = getResolutionPricing(props.model)
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
         tokenUnit,
@@ -127,6 +133,32 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </span>
       )
     }
+  } else if (resolutionPricing) {
+    priceSummary = (
+      <>
+        {resolutionPricing.prices.map((item) => (
+          <span
+            key={item.resolution}
+            className='text-muted-foreground whitespace-nowrap'
+          >
+            {item.resolution.toUpperCase()}{' '}
+            <span className='text-foreground font-mono font-semibold'>
+              {formatResolutionPrice(
+                props.model,
+                item,
+                showRechargePrice,
+                priceRate,
+                usdExchangeRate,
+                props.selectedGroup
+              )}
+            </span>{' '}
+            {resolutionPricing.unit === 'image'
+              ? t('Per image')
+              : t('Per second')}
+          </span>
+        ))}
+      </>
+    )
   } else if (isTokenBased) {
     priceSummary = (
       <>

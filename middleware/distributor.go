@@ -336,6 +336,14 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
+	} else if isNativeViduVideoSubmitPath(c.Request.URL.Path) {
+		relayMode := relayconstant.RelayModeVideoSubmit
+		req, err := getModelFromRequest(c)
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest.Model = req.Model
+		c.Set("relay_mode", relayMode)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
@@ -414,6 +422,18 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func isNativeViduVideoSubmitPath(path string) bool {
+	switch path {
+	case "/ent/v2/text2video",
+		"/ent/v2/img2video",
+		"/ent/v2/reference2video",
+		"/ent/v2/start-end2video":
+		return true
+	default:
+		return false
+	}
 }
 
 // 修复 #4834: GET /v1/video/generations/:task_id && /v1/video/:task_id 此前不解析 model，

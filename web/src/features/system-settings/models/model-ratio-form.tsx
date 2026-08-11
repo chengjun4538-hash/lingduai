@@ -90,7 +90,7 @@ const modelJsonFields: Array<{
     name: 'ModelPrice',
     labelKey: 'Model fixed pricing',
     descriptionKey:
-      'JSON map of model → USD cost per request. Takes precedence over ratio based billing.',
+      'JSON map of model → USD cost per request. Resolution tiers use model:1k, model:2k, model:4k for images and model:1080p, model:720p, model:540p for Vidu per-second pricing.',
   },
   {
     name: 'ModelRatio',

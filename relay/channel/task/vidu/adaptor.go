@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/pkg/errors"
 )
@@ -85,6 +88,10 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
+	if action, ok := nativeViduVideoAction(c.Request.URL.Path); ok {
+		return a.validateNativeViduVideo(c, info, action)
+	}
+
 	if err := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); err != nil {
 		return err
 	}
@@ -111,6 +118,10 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if isNativeViduVideoPath(c.Request.URL.Path) {
+		return a.buildNativeViduVideoBody(c, info)
+	}
+
 	v, exists := c.Get("task_request")
 	if !exists {
 		return nil, fmt.Errorf("request not found in context")
@@ -158,6 +169,37 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	return nil
 }
 
+func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	var response responsePayload
+	if err := common.Unmarshal(taskData, &response); err != nil {
+		return nil
+	}
+	if strings.TrimSpace(response.Resolution) == "" {
+		return nil
+	}
+
+	duration := response.Duration
+	if duration <= 0 && info != nil {
+		duration = int(info.PriceData.OtherRatios()["duration"])
+	}
+	if duration <= 0 {
+		duration = defaultViduDuration
+	}
+
+	unitPrice, ok := ratio_setting.GetViduResolutionSecondPriceByModels(
+		viduSubmitPriceModelNames(info, response.Model),
+		response.Resolution,
+	)
+	if !ok {
+		return nil
+	}
+
+	return map[string]float64{
+		"duration":        float64(duration),
+		"vidu_unit_price": unitPrice,
+	}
+}
+
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
@@ -181,6 +223,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
+	if isNativeViduVideoPath(c.Request.URL.Path) {
+		clientBody := rewriteNativeTaskID(responseBody, info.PublicTaskID)
+		c.Data(http.StatusOK, "application/json", clientBody)
+		return vResp.TaskId, responseBody, nil
+	}
+
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
@@ -191,6 +239,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	return a.fetchTask(baseUrl, key, body, proxy, nil)
+}
+
+func (a *TaskAdaptor) FetchTaskWithHeaderOverride(baseUrl, key string, body map[string]any, proxy string, headerOverride map[string]string) (*http.Response, error) {
+	return a.fetchTask(baseUrl, key, body, proxy, headerOverride)
+}
+
+func (a *TaskAdaptor) fetchTask(baseUrl, key string, body map[string]any, proxy string, headerOverride map[string]string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -205,6 +261,12 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Token "+key)
+	for headerName, value := range headerOverride {
+		req.Header.Set(headerName, value)
+		if strings.EqualFold(headerName, "Host") {
+			req.Host = value
+		}
+	}
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
@@ -226,12 +288,16 @@ func (a *TaskAdaptor) GetChannelName() string {
 // ============================
 
 func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, info *relaycommon.RelayInfo) (*requestPayload, error) {
+	resolution := req.Resolution
+	if resolution == "" {
+		resolution = req.Size
+	}
 	r := requestPayload{
 		Model:             taskcommon.DefaultString(info.UpstreamModelName, "viduq1"),
 		Images:            req.Images,
 		Prompt:            req.Prompt,
 		Duration:          taskcommon.DefaultInt(req.Duration, 5),
-		Resolution:        taskcommon.DefaultString(req.Size, "1080p"),
+		Resolution:        taskcommon.DefaultString(resolution, "1080p"),
 		MovementAmplitude: "auto",
 		Bgm:               false,
 	}
@@ -239,6 +305,186 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 	return &r, nil
+}
+
+const defaultViduDuration = 5
+
+func viduSubmitPriceModelNames(info *relaycommon.RelayInfo, responseModel string) []string {
+	modelNames := make([]string, 0, 3)
+	if info != nil {
+		modelNames = append(modelNames, info.OriginModelName, info.UpstreamModelName)
+	}
+	return append(modelNames, responseModel)
+}
+
+func nativeViduVideoAction(path string) (string, bool) {
+	switch path {
+	case "/ent/v2/text2video":
+		return constant.TaskActionTextGenerate, true
+	case "/ent/v2/img2video":
+		return constant.TaskActionGenerate, true
+	case "/ent/v2/reference2video":
+		return constant.TaskActionReferenceGenerate, true
+	case "/ent/v2/start-end2video":
+		return constant.TaskActionFirstTailGenerate, true
+	default:
+		return "", false
+	}
+}
+
+func isNativeViduVideoPath(path string) bool {
+	_, ok := nativeViduVideoAction(path)
+	return ok
+}
+
+func (a *TaskAdaptor) validateNativeViduVideo(c *gin.Context, info *relaycommon.RelayInfo, action string) *taskdto.TaskError {
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+
+	var body map[string]any
+	if err := common.UnmarshalBodyReusable(c, &body); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	modelName, _ := body["model"].(string)
+	if strings.TrimSpace(modelName) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("model field is required"), "missing_model", http.StatusBadRequest)
+	}
+	duration := defaultViduDuration
+	if rawDuration, exists := body["duration"]; exists {
+		parsedDuration, err := parseNativeViduDuration(rawDuration)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_duration", http.StatusBadRequest)
+		}
+		duration = parsedDuration
+	}
+
+	request := relaycommon.TaskSubmitReq{
+		Model:      modelName,
+		Prompt:     stringFromAny(body["prompt"]),
+		Duration:   duration,
+		Resolution: stringFromAny(body["resolution"]),
+		Images:     stringSliceFromAny(body["images"]),
+	}
+	if len(request.Images) == 0 {
+		if image := strings.TrimSpace(stringFromAny(body["image"])); image != "" {
+			request.Images = []string{image}
+		}
+	}
+
+	info.Action = action
+	c.Set("task_request", request)
+	return nil
+}
+
+func (a *TaskAdaptor) buildNativeViduVideoBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	data, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	var body map[string]any
+	if err := common.Unmarshal(data, &body); err != nil {
+		return nil, err
+	}
+	if duration, ok := asPositiveInt(body["duration"]); !ok || duration <= 0 {
+		body["duration"] = defaultViduDuration
+	}
+	if info.UpstreamModelName != "" {
+		body["model"] = info.UpstreamModelName
+	}
+
+	out, err := common.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(out), nil
+}
+
+func asPositiveInt(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, typed > 0
+	case int64:
+		return int(typed), typed > 0
+	case float64:
+		return int(typed), typed > 0
+	case string:
+		parsed, err := strconv.Atoi(typed)
+		return parsed, err == nil && parsed > 0
+	default:
+		return 0, false
+	}
+}
+
+func parseNativeViduDuration(value any) (int, error) {
+	var duration int64
+	switch typed := value.(type) {
+	case int:
+		duration = int64(typed)
+	case int64:
+		duration = typed
+	case float64:
+		if math.Trunc(typed) != typed || typed > math.MaxInt64 || typed < math.MinInt64 {
+			return 0, fmt.Errorf("duration must be an integer between 1 and %d", relaycommon.MaxTaskDurationSeconds)
+		}
+		duration = int64(typed)
+	case string:
+		parsed, err := strconv.ParseInt(typed, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("duration must be an integer between 1 and %d", relaycommon.MaxTaskDurationSeconds)
+		}
+		duration = parsed
+	default:
+		return 0, fmt.Errorf("duration must be an integer between 1 and %d", relaycommon.MaxTaskDurationSeconds)
+	}
+	if duration <= 0 || duration > relaycommon.MaxTaskDurationSeconds {
+		return 0, fmt.Errorf("duration must be between 1 and %d", relaycommon.MaxTaskDurationSeconds)
+	}
+	return int(duration), nil
+}
+
+func stringFromAny(value any) string {
+	stringValue, _ := value.(string)
+	return stringValue
+}
+
+func stringSliceFromAny(value any) []string {
+	values, ok := value.([]any)
+	if !ok {
+		stringValues, _ := value.([]string)
+		return stringValues
+	}
+	result := make([]string, 0, len(values))
+	for _, item := range values {
+		if stringValue := stringFromAny(item); stringValue != "" {
+			result = append(result, stringValue)
+		}
+	}
+	return result
+}
+
+func rewriteNativeTaskID(body []byte, publicTaskID string) []byte {
+	if publicTaskID == "" {
+		return body
+	}
+	var payload map[string]any
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return body
+	}
+	if _, ok := payload["task_id"]; !ok {
+		return body
+	}
+	payload["task_id"] = publicTaskID
+	out, err := common.Marshal(payload)
+	if err != nil {
+		return body
+	}
+	return out
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
