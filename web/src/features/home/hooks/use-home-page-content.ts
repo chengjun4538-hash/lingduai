@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { isHttpUrl } from '@/lib/content-format'
 
 import { getHomePageContent } from '../api'
+import { parseSiteConfig } from '../site-config'
 import type { HomePageContentResult } from '../types'
 
 const STORAGE_KEY = 'home_page_content'
@@ -79,6 +80,7 @@ export function useHomePageContent(): HomePageContentResult {
   }, [])
 
   const isUrl = isHttpUrl(content)
+  const siteConfig = isUrl ? null : parseSiteConfig(content)
 
-  return { content, isLoaded, isUrl }
+  return { content, isLoaded, isUrl, siteConfig }
 }

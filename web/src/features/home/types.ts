@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { SiteConfig } from './site-config'
+
 // ============================================================================
 // Home Page Types
 // ============================================================================
@@ -36,4 +38,5 @@ export interface HomePageContentResult {
   content: string
   isLoaded: boolean
   isUrl: boolean
+  siteConfig: SiteConfig | null
 }

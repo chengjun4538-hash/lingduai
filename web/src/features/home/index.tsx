@@ -23,10 +23,16 @@ import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
+import { useStatus } from '@/hooks/use-status'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { ConfiguredHome } from './components/configured-home'
+import {
+  buildConfiguredMobileLinks,
+  ConfiguredNavigation,
+} from './components/configured-navigation'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -34,8 +40,9 @@ export function Home() {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { resolvedTheme } = useTheme()
   const { auth } = useAuthStore()
+  const { status } = useStatus()
   const isAuthenticated = !!auth.user
-  const { content, isLoaded, isUrl } = useHomePageContent()
+  const { content, isLoaded, isUrl, siteConfig } = useHomePageContent()
 
   const syncIframePreferences = useCallback(() => {
     try {
@@ -64,6 +71,22 @@ export function Home() {
         <main className='flex min-h-screen items-center justify-center'>
           <div className='text-muted-foreground'>{t('Loading...')}</div>
         </main>
+      </PublicLayout>
+    )
+  }
+
+  if (siteConfig) {
+    const configuredMobileLinks = buildConfiguredMobileLinks(
+      siteConfig.nav,
+      status?.docs_link as string | undefined
+    )
+    return (
+      <PublicLayout
+        showMainContainer={false}
+        navContent={<ConfiguredNavigation config={siteConfig.nav} />}
+        navLinks={configuredMobileLinks}
+      >
+        <ConfiguredHome config={siteConfig} />
       </PublicLayout>
     )
   }
