@@ -89,8 +89,12 @@ jobs:
         run: bun run typecheck
 
       # 官方 rc.24 当前的全量 bun test 会误收集多组 node:test 文件并产生基线失败。
-      - name: Test migrated home configuration
-        run: bun test src/features/home/__tests__/site-config.test.ts
+      - name: Test migrated frontend behavior
+        run: >-
+          bun test
+          src/features/home/__tests__/site-config.test.ts
+          src/features/home/__tests__/model-icon.test.ts
+          src/context/__tests__/theme-preference.test.ts
 
       - name: Build
         run: bun run build

@@ -27,13 +27,14 @@ import {
 
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
-type Theme = 'dark' | 'light' | 'system'
+import { resolveThemePreference, type Theme } from './theme-preference'
+
 type ResolvedTheme = Exclude<Theme, 'system'>
 
-const DEFAULT_THEME = 'system'
+const DEFAULT_THEME = 'dark'
 const THEME_COOKIE_NAME = 'vite-ui-theme'
 const THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
-const THEMES = new Set<Theme>(['dark', 'light', 'system'])
+const LEGACY_THEME_STORAGE_KEY = 'theme-mode'
 
 type ThemeProviderProps = {
   children: React.ReactNode
@@ -71,8 +72,14 @@ function resolveTheme(theme: Theme): ResolvedTheme {
 }
 
 function getStoredTheme(storageKey: string, fallback: Theme): Theme {
-  const storedTheme = getCookie(storageKey) as Theme | undefined
-  return storedTheme && THEMES.has(storedTheme) ? storedTheme : fallback
+  let legacyTheme: string | null = null
+  try {
+    legacyTheme = window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY)
+  } catch {
+    // 浏览器禁用存储时仍可使用 Cookie 或默认主题。
+  }
+
+  return resolveThemePreference(getCookie(storageKey), legacyTheme, fallback)
 }
 
 export function ThemeProvider({

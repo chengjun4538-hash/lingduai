@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ArrowRight, BookOpen, Check, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { useStatus } from '@/hooks/use-status'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
+import { resolveHomeModelIconName } from '../lib/model-icon'
 import type {
   HomeButtonConfig,
   HomeFooterConfig,
@@ -43,6 +44,45 @@ const PROVIDERS = [
   'Azure AI',
   'Suno',
   'Midjourney',
+]
+
+const MODEL_CARD_PALETTE = [
+  {
+    gradient:
+      'linear-gradient(135deg, rgba(16, 163, 127, 0.18) 0%, rgba(0, 0, 0, 0) 100%)',
+    border: 'rgba(52, 211, 153, 0.22)',
+    tags: ['#34d399', '#818cf8', '#f59e0b'],
+  },
+  {
+    gradient:
+      'linear-gradient(135deg, rgba(204, 93, 74, 0.18) 0%, rgba(0, 0, 0, 0) 100%)',
+    border: 'rgba(244, 114, 182, 0.22)',
+    tags: ['#f472b6', '#a78bfa', '#22d3ee'],
+  },
+  {
+    gradient:
+      'linear-gradient(135deg, rgba(96, 165, 250, 0.18) 0%, rgba(0, 0, 0, 0) 100%)',
+    border: 'rgba(96, 165, 250, 0.22)',
+    tags: ['#60a5fa', '#34d399', '#fbbf24'],
+  },
+  {
+    gradient:
+      'linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(0, 0, 0, 0) 100%)',
+    border: 'rgba(129, 140, 248, 0.22)',
+    tags: ['#818cf8', '#f59e0b', '#34d399'],
+  },
+  {
+    gradient:
+      'linear-gradient(135deg, rgba(226, 232, 240, 0.1) 0%, rgba(0, 0, 0, 0) 100%)',
+    border: 'rgba(226, 232, 240, 0.16)',
+    tags: ['#e2e8f0', '#f472b6', '#22d3ee'],
+  },
+  {
+    gradient:
+      'linear-gradient(135deg, rgba(251, 191, 36, 0.16) 0%, rgba(0, 0, 0, 0) 100%)',
+    border: 'rgba(251, 191, 36, 0.22)',
+    tags: ['#fbbf24', '#34d399', '#f472b6'],
+  },
 ]
 
 function SectionHeading(props: { title: string; subtitle?: string }) {
@@ -76,7 +116,7 @@ function ActionLink(props: {
   return (
     <Button
       variant={props.primary ? 'default' : 'outline'}
-      className='h-11 rounded-lg px-5'
+      className='h-11 rounded-full px-6'
       render={
         <a
           href={href}
@@ -96,30 +136,27 @@ function ConfiguredHero(props: {
   docsUrl: string
 }) {
   return (
-    <section className='relative overflow-hidden px-6 pt-28 pb-20 md:pt-36 md:pb-24'>
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-30 dark:opacity-20'
-        style={{
-          background:
-            'radial-gradient(ellipse 55% 45% at 20% 20%, oklch(0.65 0.2 255 / 70%), transparent 70%), radial-gradient(ellipse 50% 45% at 80% 25%, oklch(0.63 0.2 300 / 55%), transparent 70%)',
-        }}
-      />
-      <div className='mx-auto flex max-w-5xl flex-col items-center text-center'>
-        <div className='mb-5 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400'>
-          <span className='size-1.5 rounded-full bg-blue-500' />
+    <section className='configured-hero'>
+      <div className='configured-hero-decoration' aria-hidden='true'>
+        <span className='configured-hero-glow configured-hero-glow-blue' />
+        <span className='configured-hero-glow configured-hero-glow-violet' />
+        <span className='configured-hero-glow configured-hero-glow-pink' />
+      </div>
+      <div className='configured-hero-content'>
+        <div className='configured-hero-badge'>
+          <span className='configured-hero-badge-dot' />
           {props.config.badge}
         </div>
-        <h1 className='text-[clamp(2.5rem,7vw,5rem)] leading-[1.08] font-bold tracking-tight'>
+        <h1 className='configured-hero-title'>
           {props.config.titleLine1}
-          <span className='block bg-gradient-to-r from-blue-400 via-violet-400 to-fuchsia-500 bg-clip-text text-transparent'>
+          <span className='configured-hero-title-gradient'>
             {props.config.titleLine2}
           </span>
         </h1>
-        <p className='text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed md:text-lg'>
+        <p className='configured-hero-subtitle'>
           {props.config.subtitle}
         </p>
-        <div className='mt-8 flex flex-wrap justify-center gap-3'>
+        <div className='configured-hero-actions'>
           <ActionLink
             button={props.config.primaryButton}
             docsUrl={props.docsUrl}
@@ -130,22 +167,24 @@ function ConfiguredHero(props: {
             docsUrl={props.docsUrl}
           />
         </div>
-        <div className='border-border/50 bg-background/60 mt-14 grid w-full max-w-4xl grid-cols-2 overflow-hidden rounded-xl border shadow-sm backdrop-blur-sm md:grid-cols-4'>
-          {props.config.stats.map((stat) => (
-            <div
-              key={`${stat.value}-${stat.label}`}
-              className='border-border/40 flex flex-col items-center border-r border-b px-4 py-5 last:border-r-0 md:border-b-0'
-            >
-              <span
-                className='text-2xl font-bold tabular-nums md:text-3xl'
-                style={stat.color ? { color: stat.color } : undefined}
-              >
-                {stat.value}
-              </span>
-              <span className='text-muted-foreground mt-1 text-xs'>
-                {stat.label}
-              </span>
-            </div>
+        <div className='configured-hero-stats'>
+          {props.config.stats.map((stat, index) => (
+            <Fragment key={`${stat.value}-${stat.label}`}>
+              <div className='configured-hero-stat'>
+                <span
+                  className='configured-hero-stat-value'
+                  style={stat.color ? { color: stat.color } : undefined}
+                >
+                  {stat.value}
+                </span>
+                <span className='configured-hero-stat-label'>
+                  {stat.label}
+                </span>
+              </div>
+              {index < props.config.stats.length - 1 && (
+                <span className='configured-hero-stat-separator' />
+              )}
+            </Fragment>
           ))}
         </div>
       </div>
@@ -178,52 +217,64 @@ function ModelShowcase(props: {
   subtitle: string
   models: HomeModelConfig[]
 }) {
+  const { t } = useTranslation()
+
   return (
-    <section className='px-6 py-20 md:py-28'>
+    <section className='configured-model-showcase px-6 py-20 md:py-28'>
       <div className='mx-auto max-w-6xl'>
         <SectionHeading title={props.title} subtitle={props.subtitle} />
         <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
-          {props.models.map((model) => {
-            const iconKey = model.icon || model.providerKey || model.provider
-            const icon = iconKey ? getLobeIcon(iconKey, 24) : null
+          {props.models.map((model, modelIndex) => {
+            const icon = getLobeIcon(resolveHomeModelIconName(model), 22)
+            const palette =
+              MODEL_CARD_PALETTE[modelIndex % MODEL_CARD_PALETTE.length]
             return (
               <article
                 key={model.name}
-                className='border-border/50 bg-muted/10 hover:bg-muted/20 rounded-xl border p-5 transition-colors'
+                className='configured-model-card'
+                style={{
+                  background: palette.gradient,
+                  borderColor: palette.border,
+                }}
               >
-                <div className='flex items-center gap-3'>
-                  <div className='bg-background flex size-10 items-center justify-center rounded-lg border'>
-                    {icon || model.name.slice(0, 1)}
-                  </div>
-                  <div>
-                    <h3 className='font-mono text-sm font-semibold'>
-                      {model.name}
-                    </h3>
-                    <p className='text-muted-foreground text-xs'>
-                      {model.provider}
-                    </p>
-                  </div>
+                <div className='configured-model-card-header'>
+                  <div className='configured-model-card-icon'>{icon}</div>
+                  <span className='configured-model-card-provider'>
+                    {model.provider}
+                  </span>
                 </div>
-                <div className='mt-4 flex flex-wrap gap-1.5'>
-                  {model.tags?.map((tag) => (
-                    <span
-                      key={tag}
-                      className='rounded-md bg-blue-500/8 px-2 py-1 text-[11px] text-blue-600 dark:text-blue-400'
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                <h3 className='configured-model-card-name'>{model.name}</h3>
+                <div className='configured-model-card-tags'>
+                  {model.tags?.map((tag, tagIndex) => {
+                    const color = palette.tags[tagIndex % palette.tags.length]
+                    return (
+                      <span
+                        key={tag}
+                        className='configured-model-card-tag'
+                        style={{
+                          color,
+                          borderColor: `${color}40`,
+                          background: `${color}10`,
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    )
+                  })}
                 </div>
-                <p className='text-muted-foreground mt-4 text-sm leading-relaxed'>
+                <p className='configured-model-card-description'>
                   {model.desc || model.description}
                 </p>
+                <a href='/console' className='configured-model-card-action'>
+                  {t('Get Started')} →
+                </a>
               </article>
             )
           })}
         </div>
         <div className='mt-8 text-center'>
           <Button variant='outline' render={<a href='/pricing' />}>
-            查看全部模型
+            {t('View all currently available models')}
             <ArrowRight className='size-4' />
           </Button>
         </div>
@@ -470,7 +521,7 @@ export function ConfiguredHome(props: { config: SiteConfig }) {
     }))
 
   return (
-    <>
+    <div className='configured-home'>
       <ConfiguredHero
         config={{
           ...home.hero,
@@ -586,6 +637,6 @@ export function ConfiguredHome(props: { config: SiteConfig }) {
           })),
         }}
       />
-    </>
+    </div>
   )
 }
