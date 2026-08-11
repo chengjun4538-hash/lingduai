@@ -1,8 +1,11 @@
 package dto
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -544,19 +547,47 @@ func marshalJSONWithExtraFields(base any, extra map[string]json.RawMessage, know
 		return nil, err
 	}
 
-	var fields map[string]json.RawMessage
-	if err := kitutil.Unmarshal(data, &fields); err != nil {
-		return nil, err
-	}
-	for field, value := range extra {
+	fieldNames := make([]string, 0, len(extra))
+	for field := range extra {
 		if _, known := knownFields[field]; known {
 			continue
 		}
-		if _, exists := fields[field]; !exists {
-			fields[field] = value
-		}
+		fieldNames = append(fieldNames, field)
 	}
-	return kitutil.Marshal(fields)
+	if len(fieldNames) == 0 {
+		return data, nil
+	}
+	sort.Strings(fieldNames)
+
+	data = bytes.TrimSpace(data)
+	if len(data) < 2 || data[0] != '{' || data[len(data)-1] != '}' {
+		return nil, fmt.Errorf("Gemini 请求必须序列化为 JSON 对象")
+	}
+
+	var result bytes.Buffer
+	result.Grow(len(data) + len(fieldNames)*16)
+	result.Write(data[:len(data)-1])
+	if len(data) > 2 {
+		result.WriteByte(',')
+	}
+	for index, field := range fieldNames {
+		if index > 0 {
+			result.WriteByte(',')
+		}
+		fieldJSON, err := kitutil.Marshal(field)
+		if err != nil {
+			return nil, err
+		}
+		valueJSON, err := kitutil.Marshal(extra[field])
+		if err != nil {
+			return nil, err
+		}
+		result.Write(fieldJSON)
+		result.WriteByte(':')
+		result.Write(valueJSON)
+	}
+	result.WriteByte('}')
+	return result.Bytes(), nil
 }
 
 type MediaResolution string
