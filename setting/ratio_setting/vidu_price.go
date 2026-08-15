@@ -41,6 +41,15 @@ func GetViduResolutionSecondPrice(modelName, resolution string) (float64, bool) 
 	return GetViduResolutionSecondPriceByModels([]string{modelName}, resolution)
 }
 
+func HasViduResolutionPrice(modelName string) bool {
+	for _, resolution := range viduResolutionOrder {
+		if _, ok := GetModelPrice(ViduResolutionPriceKey(modelName, resolution), false); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func GetViduResolutionSecondPriceByModels(modelNames []string, resolution string) (float64, bool) {
 	resolution = NormalizeViduResolution(resolution)
 	if _, ok := defaultViduResolutionSecondPrices[resolution]; !ok {

@@ -290,6 +290,10 @@ func HasModelBillingConfig(modelName string) bool {
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}
+	// 分辨率分档价格本身就是完整计费配置，不要求额外设置一个不会参与扣费的基础单价。
+	if ratio_setting.HasImageResolutionPrice(modelName) || ratio_setting.HasViduResolutionPrice(modelName) {
+		return true
+	}
 	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
 		return true
 	}

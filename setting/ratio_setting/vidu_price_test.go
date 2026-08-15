@@ -23,6 +23,8 @@ func TestGetViduResolutionSecondPriceUsesConfiguredModelPrice(t *testing.T) {
 	price, ok := GetViduResolutionSecondPrice("viduq3", "720P")
 	require.True(t, ok)
 	assert.Equal(t, 1.25, price)
+	assert.True(t, HasViduResolutionPrice("viduq3"))
+	assert.False(t, HasViduResolutionPrice("unconfigured-vidu"))
 }
 
 func TestGetViduResolutionSecondPriceFallsBackToDefault(t *testing.T) {

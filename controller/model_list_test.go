@@ -321,6 +321,57 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.Empty(t, missingExprPricing.BillingExpr)
 }
 
+func TestListModelsIncludesResolutionPricedModels(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	originalPrices := ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(originalPrices))
+		model.InvalidatePricingCache()
+	})
+
+	prices := ratio_setting.GetModelPriceMap()
+	const imageModel = "zz-resolution-priced-image-model"
+	const videoModel = "zz-vidu-resolution-priced-model"
+	delete(prices, imageModel)
+	delete(prices, videoModel)
+	prices[ratio_setting.ImageResolutionPriceKey(imageModel, "1k")] = 0.02
+	prices[ratio_setting.ImageResolutionPriceKey(imageModel, "2k")] = 0.04
+	prices[ratio_setting.ImageResolutionPriceKey(imageModel, "4k")] = 0.08
+	prices[ratio_setting.ViduResolutionPriceKey(videoModel, "1080p")] = 0.75
+	prices[ratio_setting.ViduResolutionPriceKey(videoModel, "720p")] = 0.6
+	prices[ratio_setting.ViduResolutionPriceKey(videoModel, "540p")] = 0.3
+	priceBytes, err := common.Marshal(prices)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(string(priceBytes)))
+	model.InvalidatePricingCache()
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "resolution-priced-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: imageModel, ChannelId: 1, Enabled: true},
+		{Group: "default", Model: videoModel, ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-resolution-unpriced-model", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1004)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, imageModel)
+	require.Contains(t, ids, videoModel)
+	require.NotContains(t, ids, "zz-resolution-unpriced-model")
+}
+
 func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)

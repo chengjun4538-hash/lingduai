@@ -11,7 +11,10 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-const chatImageDefaultResolution = "2k"
+const (
+	chatImageDefaultResolution   = "2k"
+	geminiImageDefaultResolution = "1k"
+)
 
 type imagePricingRequest struct {
 	Resolution string
@@ -24,15 +27,15 @@ type imageResolutionCandidate struct {
 	Value string
 }
 
-type chatImageConfig struct {
+type imageSizeConfig struct {
 	ImageSize      *string `json:"image_size,omitempty"`
 	ImageSizeCamel *string `json:"imageSize,omitempty"`
 }
 
 type chatImageExtraBody struct {
-	ImageConfig *chatImageConfig `json:"image_config,omitempty"`
+	ImageConfig *imageSizeConfig `json:"image_config,omitempty"`
 	Google      *struct {
-		ImageConfig *chatImageConfig `json:"image_config,omitempty"`
+		ImageConfig *imageSizeConfig `json:"image_config,omitempty"`
 	} `json:"google,omitempty"`
 }
 
@@ -78,38 +81,102 @@ func resolveImagePricingRequest(info *relaycommon.RelayInfo) (imagePricingReques
 			result.Resolution = chatImageDefaultResolution
 			return result, true, nil
 		}
+		resolution, pixels, err := classifyImageResolutionCandidates(candidates)
+		if err != nil {
+			return result, true, err
+		}
+		result.Resolution = resolution
+		result.Pixels = pixels
+		return result, true, nil
 
-		var selected imageResolutionCandidate
-		for _, candidate := range candidates {
-			resolution, pixels, err := ratio_setting.ClassifyImageResolution(candidate.Value)
-			if err != nil {
-				return result, true, fmt.Errorf("图片计费字段 %s 无效: %w", candidate.Field, err)
+	case *dto.GeminiChatRequest:
+		if info.RelayMode != relayconstant.RelayModeChatCompletions {
+			return result, false, nil
+		}
+		if request.GenerationConfig.CandidateCount != nil {
+			count := *request.GenerationConfig.CandidateCount
+			if count < 0 || count > dto.MaxImageN {
+				return result, true, fmt.Errorf("candidateCount 必须是 1 到 %d 之间的整数", dto.MaxImageN)
 			}
-			if result.Resolution == "" {
-				result.Resolution = resolution
-				result.Pixels = pixels
-				selected = candidate
-				continue
-			}
-			if resolution != result.Resolution {
-				return result, true, fmt.Errorf(
-					"图片计费分辨率字段冲突：%s=%q 对应 %s，%s=%q 对应 %s",
-					selected.Field,
-					selected.Value,
-					strings.ToUpper(result.Resolution),
-					candidate.Field,
-					candidate.Value,
-					strings.ToUpper(resolution),
-				)
-			}
-			if result.Pixels == 0 && pixels > 0 {
-				result.Pixels = pixels
+			if count > 0 {
+				result.Count = count
 			}
 		}
+
+		if len(request.GenerationConfig.ImageConfig) == 0 {
+			result.Resolution = geminiImageDefaultResolution
+			return result, true, nil
+		}
+		var config imageSizeConfig
+		if err := common.Unmarshal(request.GenerationConfig.ImageConfig, &config); err != nil {
+			return result, true, fmt.Errorf("解析 generationConfig.imageConfig 失败: %w", err)
+		}
+		candidates := make([]imageResolutionCandidate, 0, 2)
+		if config.ImageSize != nil {
+			value := strings.TrimSpace(*config.ImageSize)
+			if value != "" && !strings.EqualFold(value, "auto") {
+				candidates = append(candidates, imageResolutionCandidate{
+					Field: "generationConfig.imageConfig.image_size",
+					Value: value,
+				})
+			}
+		}
+		if config.ImageSizeCamel != nil {
+			value := strings.TrimSpace(*config.ImageSizeCamel)
+			if value != "" && !strings.EqualFold(value, "auto") {
+				candidates = append(candidates, imageResolutionCandidate{
+					Field: "generationConfig.imageConfig.imageSize",
+					Value: value,
+				})
+			}
+		}
+		if len(candidates) == 0 {
+			result.Resolution = geminiImageDefaultResolution
+			return result, true, nil
+		}
+		resolution, pixels, err := classifyImageResolutionCandidates(candidates)
+		if err != nil {
+			return result, true, err
+		}
+		result.Resolution = resolution
+		result.Pixels = pixels
 		return result, true, nil
 	}
 
 	return result, false, nil
+}
+
+func classifyImageResolutionCandidates(candidates []imageResolutionCandidate) (string, int64, error) {
+	var selected imageResolutionCandidate
+	var selectedResolution string
+	var selectedPixels int64
+	for _, candidate := range candidates {
+		resolution, pixels, err := ratio_setting.ClassifyImageResolution(candidate.Value)
+		if err != nil {
+			return "", 0, fmt.Errorf("图片计费字段 %s 无效: %w", candidate.Field, err)
+		}
+		if selectedResolution == "" {
+			selected = candidate
+			selectedResolution = resolution
+			selectedPixels = pixels
+			continue
+		}
+		if resolution != selectedResolution {
+			return "", 0, fmt.Errorf(
+				"图片计费分辨率字段冲突：%s=%q 对应 %s，%s=%q 对应 %s",
+				selected.Field,
+				selected.Value,
+				strings.ToUpper(selectedResolution),
+				candidate.Field,
+				candidate.Value,
+				strings.ToUpper(resolution),
+			)
+		}
+		if selectedPixels == 0 && pixels > 0 {
+			selectedPixels = pixels
+		}
+	}
+	return selectedResolution, selectedPixels, nil
 }
 
 func chatImageResolutionCandidates(request *dto.GeneralOpenAIRequest) ([]imageResolutionCandidate, error) {
@@ -133,7 +200,7 @@ func chatImageResolutionCandidates(request *dto.GeneralOpenAIRequest) ([]imageRe
 	appendCandidate("image_size", request.ImageSize, false)
 
 	if len(request.ImageConfig) > 0 {
-		var config chatImageConfig
+		var config imageSizeConfig
 		if err := common.Unmarshal(request.ImageConfig, &config); err != nil {
 			return nil, fmt.Errorf("解析 image_config 失败: %w", err)
 		}

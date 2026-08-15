@@ -66,6 +66,60 @@ func TestModelPriceHelperUsesChatImageDefaultsAndRejectsConflicts(t *testing.T) 
 	assert.Contains(t, err.Error(), "图片计费分辨率字段冲突")
 }
 
+func TestModelPriceHelperUsesGeminiImageResolutionPrice(t *testing.T) {
+	prepareImageResolutionPrices(t, "gemini-image-model")
+	tests := []struct {
+		name       string
+		config     []byte
+		count      *int
+		resolution string
+		price      float64
+		quota      int
+	}{
+		{
+			name:       "未指定 imageSize 时使用 Gemini 默认 1K",
+			resolution: "1k",
+			price:      0.02,
+			quota:      10_000,
+		},
+		{
+			name:       "读取 camelCase imageSize 并按候选数量计费",
+			config:     []byte(`{"imageSize":"4K"}`),
+			count:      common.GetPointer(2),
+			resolution: "4k",
+			price:      0.08,
+			quota:      80_000,
+		},
+		{
+			name:       "兼容 snake_case image_size",
+			config:     []byte(`{"image_size":"2K"}`),
+			resolution: "2k",
+			price:      0.04,
+			quota:      20_000,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := &dto.GeminiChatRequest{
+				GenerationConfig: dto.GeminiChatGenerationConfig{
+					CandidateCount: test.count,
+					ImageConfig:    test.config,
+				},
+			}
+			info := imagePricingRelayInfo(request, "gemini-image-model", relayconstant.RelayModeChatCompletions)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-image-model:generateContent", nil)
+
+			priceData, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
+			require.NoError(t, err)
+			assert.Equal(t, test.resolution, priceData.ImageResolution)
+			assert.Equal(t, test.price, priceData.ModelPrice)
+			assert.Equal(t, test.quota, priceData.QuotaToPreConsume)
+		})
+	}
+}
+
 func TestModelPriceHelperRejectsOversizedChatImageCount(t *testing.T) {
 	prepareImageResolutionPrices(t, "chat-image-model")
 	request := &dto.GeneralOpenAIRequest{
@@ -79,6 +133,22 @@ func TestModelPriceHelperRejectsOversizedChatImageCount(t *testing.T) {
 	_, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "n must be an integer")
+}
+
+func TestModelPriceHelperRejectsOversizedGeminiImageCount(t *testing.T) {
+	prepareImageResolutionPrices(t, "gemini-image-model")
+	request := &dto.GeminiChatRequest{
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			CandidateCount: common.GetPointer(dto.MaxImageN + 1),
+		},
+	}
+	info := imagePricingRelayInfo(request, "gemini-image-model", relayconstant.RelayModeChatCompletions)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-image-model:generateContent", nil)
+
+	_, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "candidateCount 必须是")
 }
 
 func imagePricingRelayInfo(request dto.Request, modelName string, relayMode int) *relaycommon.RelayInfo {
