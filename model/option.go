@@ -209,6 +209,9 @@ func validateOptionValue(key string, value string) error {
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
+	if key == "ModelPrice" {
+		return ratio_setting.ValidateModelPriceJSONString(value)
+	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
@@ -599,6 +602,14 @@ func updateOptionMap(key string, value string) (err error) {
 		// WaffoPayMethods is read directly from OptionMap via setting.GetWaffoPayMethods().
 		// The value is already stored in OptionMap at the top of this function (line: common.OptionMap[key] = value).
 		// No additional in-memory variable to update.
+	}
+	if err == nil {
+		switch key {
+		case "ModelPrice", "ModelRatio", "CacheRatio", "CreateCacheRatio",
+			"CompletionRatio", "ImageRatio", "AudioRatio", "AudioCompletionRatio",
+			"GroupRatio", "GroupGroupRatio":
+			InvalidatePricingCache()
+		}
 	}
 	return err
 }

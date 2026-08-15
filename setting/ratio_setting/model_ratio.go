@@ -352,6 +352,11 @@ func ModelPrice2JSONString() string {
 	return modelPriceMap.MarshalJSONString()
 }
 
+func ValidateModelPriceJSONString(jsonStr string) error {
+	prices := make(map[string]float64)
+	return common.UnmarshalJsonStr(jsonStr, &prices)
+}
+
 func UpdateModelPriceByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceMap, jsonStr, InvalidateExposedDataCache)
 }

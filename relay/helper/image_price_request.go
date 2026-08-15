@@ -90,7 +90,8 @@ func resolveImagePricingRequest(info *relaycommon.RelayInfo) (imagePricingReques
 		return result, true, nil
 
 	case *dto.GeminiChatRequest:
-		if info.RelayMode != relayconstant.RelayModeChatCompletions {
+		if info.RelayMode != relayconstant.RelayModeChatCompletions &&
+			info.RelayMode != relayconstant.RelayModeGemini {
 			return result, false, nil
 		}
 		if request.GenerationConfig.CandidateCount != nil {

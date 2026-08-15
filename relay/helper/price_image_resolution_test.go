@@ -101,15 +101,16 @@ func TestModelPriceHelperUsesGeminiImageResolutionPrice(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			requestPath := "/v1beta/models/gemini-image-model:generateContent"
 			request := &dto.GeminiChatRequest{
 				GenerationConfig: dto.GeminiChatGenerationConfig{
 					CandidateCount: test.count,
 					ImageConfig:    test.config,
 				},
 			}
-			info := imagePricingRelayInfo(request, "gemini-image-model", relayconstant.RelayModeChatCompletions)
+			info := imagePricingRelayInfo(request, "gemini-image-model", relayconstant.Path2RelayMode(requestPath))
 			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-image-model:generateContent", nil)
+			ctx.Request = httptest.NewRequest(http.MethodPost, requestPath, nil)
 
 			priceData, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
 			require.NoError(t, err)
@@ -137,14 +138,15 @@ func TestModelPriceHelperRejectsOversizedChatImageCount(t *testing.T) {
 
 func TestModelPriceHelperRejectsOversizedGeminiImageCount(t *testing.T) {
 	prepareImageResolutionPrices(t, "gemini-image-model")
+	requestPath := "/v1beta/models/gemini-image-model:generateContent"
 	request := &dto.GeminiChatRequest{
 		GenerationConfig: dto.GeminiChatGenerationConfig{
 			CandidateCount: common.GetPointer(dto.MaxImageN + 1),
 		},
 	}
-	info := imagePricingRelayInfo(request, "gemini-image-model", relayconstant.RelayModeChatCompletions)
+	info := imagePricingRelayInfo(request, "gemini-image-model", relayconstant.Path2RelayMode(requestPath))
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-image-model:generateContent", nil)
+	ctx.Request = httptest.NewRequest(http.MethodPost, requestPath, nil)
 
 	_, err := ModelPriceHelper(ctx, info, 1, request.GetTokenCountMeta())
 	require.Error(t, err)
@@ -173,7 +175,7 @@ func prepareImageResolutionPrices(t *testing.T, modelName string) {
 	})
 
 	prices := ratio_setting.GetModelPriceMap()
-	delete(prices, modelName)
+	prices[modelName] = 0.01
 	prices[ratio_setting.ImageResolutionPriceKey(modelName, "1k")] = 0.02
 	prices[ratio_setting.ImageResolutionPriceKey(modelName, "2k")] = 0.04
 	prices[ratio_setting.ImageResolutionPriceKey(modelName, "4k")] = 0.08

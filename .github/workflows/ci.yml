@@ -95,6 +95,7 @@ jobs:
           src/features/home/__tests__/site-config.test.ts
           src/features/home/__tests__/model-icon.test.ts
           src/context/__tests__/theme-preference.test.ts
+          src/features/system-settings/models/__tests__/resolution-price-detection.test.ts
 
       - name: Build
         run: bun run build

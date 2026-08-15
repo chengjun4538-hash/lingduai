@@ -60,6 +60,7 @@ import {
 } from './model-pricing-sheet'
 import {
   buildModelSnapshots,
+  getResolutionPricedModelNames,
   getSnapshotSignature,
   isBasePricingUnset,
   type ModelRow,
@@ -216,6 +217,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
     const draftByName = new Map(draftRows.map((row) => [row.name, row]))
+    const resolutionPricedModelNames = getResolutionPricedModelNames(
+      savedModelPrice
+    )
     const modelNames =
       filterMode === 'unset'
         ? new Set(candidateModelNames ?? [])
@@ -240,7 +244,12 @@ const ModelRatioVisualEditorComponent = forwardRef<
         }
       })
       .filter((row) => !row.isDraftDeleted)
-      .filter((row) => filterMode !== 'unset' || isBasePricingUnset(row.saved))
+      .filter(
+        (row) =>
+          filterMode !== 'unset' ||
+          (isBasePricingUnset(row.saved) &&
+            !resolutionPricedModelNames.has(row.name))
+      )
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
     candidateModelNames,
