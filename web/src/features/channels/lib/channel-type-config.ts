@@ -164,6 +164,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Gemini',
+    defaultBaseUrl: 'https://grsaiapi.com',
+    hints: {
+      key: 'Enter API key for this channel',
+      models: 'Nano Banana image generation with URL responses',
+    },
+  },
 }
 
 /**

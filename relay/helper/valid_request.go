@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -233,6 +235,14 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		fallthrough
 	default:
 		err := common.UnmarshalBodyReusable(c, imageRequest)
+		if common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeGrsai {
+			if err == nil {
+				err = NormalizeGrsaiImageRequest(imageRequest)
+			}
+			if err != nil {
+				return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
