@@ -426,6 +426,11 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
+		// Chat Completions 要求 URL 包在对象中；省略外层 detail，
+		// 避免使用旧版 OpenAI SDK 校验的上游拒绝 original 等新取值。
+		if url, ok := imageURL.(string); ok {
+			return map[string]any{"url": url}
+		}
 		return imageURL
 	}
 	imageURL := map[string]any{}

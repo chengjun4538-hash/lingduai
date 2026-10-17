@@ -162,6 +162,10 @@ var BatchUpdateInterval int
 var RelayTimeout int // unit is second
 
 var RelayIdleConnTimeout int // unit is second
+
+// RelayResponseHeaderTimeout 限制请求发送后等待上游响应头的时间，0 表示不限制。
+// 仅限制响应头等待，避免 RelayTimeout 的全程超时截断正常的长时间流式输出。
+var RelayResponseHeaderTimeout int // 单位为秒
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

@@ -175,3 +175,8 @@ func (p *OIDCProvider) SetProviderUserID(user *model.User, providerUserID string
 func (p *OIDCProvider) GetProviderPrefix() string {
 	return "oidc_"
 }
+
+// ProviderUserIDColumn 指定绑定字段，避免绑定操作写回完整用户快照。
+func (p *OIDCProvider) ProviderUserIDColumn() string {
+	return "oidc_id"
+}

@@ -176,3 +176,8 @@ func (p *GitHubProvider) SetProviderUserID(user *model.User, providerUserID stri
 func (p *GitHubProvider) GetProviderPrefix() string {
 	return "github_"
 }
+
+// ProviderUserIDColumn 指定绑定字段，避免绑定操作写回完整用户快照。
+func (p *GitHubProvider) ProviderUserIDColumn() string {
+	return "github_id"
+}

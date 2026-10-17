@@ -33,4 +33,8 @@ type Provider interface {
 
 	// GetProviderPrefix returns the prefix for auto-generated usernames (e.g., "github_")
 	GetProviderPrefix() string
+
+	// ProviderUserIDColumn 指定用户表中的绑定字段，避免绑定时写回完整用户快照。
+	// 使用独立关联表（如 user_oauth_bindings）保存绑定的提供商返回空字符串。
+	ProviderUserIDColumn() string
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -71,6 +72,9 @@ func ValidateSSRFProtectedFetchURL(urlStr string) error {
 	return validateURLWithCurrentFetchSetting(urlStr, true)
 }
 
+// maxTimeoutSeconds 保证秒数转换为 time.Duration 时不会溢出。
+const maxTimeoutSeconds = int(math.MaxInt64 / int64(time.Second))
+
 func newRelayHTTPTransport() *http.Transport {
 	var transport *http.Transport
 	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok && defaultTransport != nil {
@@ -91,6 +95,15 @@ func newRelayHTTPTransport() *http.Transport {
 	transport.MaxIdleConns = common.RelayMaxIdleConns
 	transport.MaxIdleConnsPerHost = common.RelayMaxIdleConnsPerHost
 	transport.IdleConnTimeout = time.Duration(common.RelayIdleConnTimeout) * time.Second
+	// 上游接收请求后一直不返回响应头时，请求协程及其全部正文缓冲区会持续占用内存。
+	// 仅限制响应头等待，响应头到达后的流式输出不受影响；配置为 0 可取消此限制。
+	if seconds := common.RelayResponseHeaderTimeout; seconds > 0 {
+		// 转换前截断过大的秒数，避免溢出为极短超时而误断正常请求。
+		if seconds > maxTimeoutSeconds {
+			seconds = maxTimeoutSeconds
+		}
+		transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
+	}
 	transport.ForceAttemptHTTP2 = true
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig
