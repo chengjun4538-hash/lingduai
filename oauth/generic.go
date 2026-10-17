@@ -312,6 +312,11 @@ func (p *GenericOAuthProvider) GetProviderPrefix() string {
 	return p.config.Slug + "_"
 }
 
+// ProviderUserIDColumn 返回空值，自定义提供商的绑定保存在独立关联表中。
+func (p *GenericOAuthProvider) ProviderUserIDColumn() string {
+	return ""
+}
+
 // GetProviderId returns the provider ID for binding purposes
 func (p *GenericOAuthProvider) GetProviderId() int {
 	return p.config.Id

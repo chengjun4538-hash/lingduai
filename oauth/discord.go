@@ -170,3 +170,8 @@ func (p *DiscordProvider) SetProviderUserID(user *model.User, providerUserID str
 func (p *DiscordProvider) GetProviderPrefix() string {
 	return "discord_"
 }
+
+// ProviderUserIDColumn 指定绑定字段，避免绑定操作写回完整用户快照。
+func (p *DiscordProvider) ProviderUserIDColumn() string {
+	return "discord_id"
+}

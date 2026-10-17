@@ -184,6 +184,11 @@ func (p *LinuxDOProvider) GetProviderPrefix() string {
 	return "linuxdo_"
 }
 
+// ProviderUserIDColumn 指定绑定字段，避免绑定操作写回完整用户快照。
+func (p *LinuxDOProvider) ProviderUserIDColumn() string {
+	return "linux_do_id"
+}
+
 // TrustLevelError indicates the user's trust level is too low
 type TrustLevelError struct {
 	Required int
