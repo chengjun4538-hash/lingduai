@@ -633,7 +633,8 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *taskdto.TaskEr
 		return false
 	}
 	// 部分上游提交不具备幂等保证，即使收到 5xx 也不能重复创建视频任务。
-	if types.IsSkipRetryError(taskErr.Error) {
+	var apiErr *types.NewAPIError
+	if errors.As(taskErr.Error, &apiErr) && types.IsSkipRetryError(apiErr) {
 		return false
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {

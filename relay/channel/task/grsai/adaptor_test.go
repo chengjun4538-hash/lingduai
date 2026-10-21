@@ -174,9 +174,9 @@ func TestVideoUpstreamFailuresNeverRetrySubmission(t *testing.T) {
 			info.ChannelBaseUrl = server.URL
 			_, err := (&TaskAdaptor{}).DoRequest(ctx, info, strings.NewReader(`{}`))
 			require.Error(t, err)
-			assert.True(t, types.IsSkipRetryError(err))
 			var apiErr *types.NewAPIError
 			require.ErrorAs(t, err, &apiErr)
+			assert.True(t, types.IsSkipRetryError(apiErr))
 			assert.Equal(t, status, apiErr.StatusCode)
 		})
 	}
@@ -186,13 +186,16 @@ func TestVideoUpstreamFailuresNeverRetrySubmission(t *testing.T) {
 	info.ChannelBaseUrl = server.URL
 	_, err := (&TaskAdaptor{}).DoRequest(ctx, info, strings.NewReader(`{}`))
 	require.Error(t, err)
-	assert.True(t, types.IsSkipRetryError(err))
+	var apiErr *types.NewAPIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.True(t, types.IsSkipRetryError(apiErr))
 	for _, body := range []string{`{}`, `{"id":"a","status":"failed","error":"拒绝"}`, `{"id":"a","status":"succeeded","results":[{"url":"data:video/mp4;base64,YQ=="}]}`} {
 		ctx, recorder, info := videoContext(`{}`)
 		response := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
 		_, _, taskErr := (&TaskAdaptor{}).DoResponse(ctx, response, info)
 		require.NotNil(t, taskErr)
-		assert.True(t, types.IsSkipRetryError(taskErr.Error))
+		require.ErrorAs(t, taskErr.Error, &apiErr)
+		assert.True(t, types.IsSkipRetryError(apiErr))
 		assert.Empty(t, recorder.Body.String())
 	}
 }
