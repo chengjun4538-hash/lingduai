@@ -101,6 +101,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 func (a *Adaptor) GetModelList() []string {
 	return []string{
+		"minimax-h3",
 		"nano-banana", "nano-banana-fast", "nano-banana-2", "nano-banana-2-cl",
 		"nano-banana-2-2k-cl", "nano-banana-2-4k-cl", "nano-banana-2.1",
 		"nano-banana-pro", "nano-banana-pro-vt", "nano-banana-pro-cl",

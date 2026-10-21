@@ -48,7 +48,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 		return normalized
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeGrsai {
-		return string(constant.EndpointTypeImageGeneration)
+		return string(common.GetGrsaiModelEndpoint(modelName, channel.GetModelMapping()))
 	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
@@ -115,6 +115,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
+	if channel.Type == constant.ChannelTypeGrsai && common.GetGrsaiModelEndpoint(testModel, channel.GetModelMapping()) == constant.EndpointTypeOpenAIVideo {
+		return testResult{localErr: fmt.Errorf("Grsai 视频为异步任务，请通过 /v1/videos 提交并查询结果")}
+	}
 
 	requestPath := "/v1/chat/completions"
 

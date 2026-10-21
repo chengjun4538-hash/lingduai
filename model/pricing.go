@@ -16,28 +16,29 @@ import (
 )
 
 type Pricing struct {
-	ModelName              string                               `json:"model_name"`
-	Description            string                               `json:"description,omitempty"`
-	Icon                   string                               `json:"icon,omitempty"`
-	Tags                   string                               `json:"tags,omitempty"`
-	VendorID               int                                  `json:"vendor_id,omitempty"`
-	QuotaType              int                                  `json:"quota_type"`
-	ModelRatio             float64                              `json:"model_ratio"`
-	ModelPrice             float64                              `json:"model_price"`
-	OwnerBy                string                               `json:"owner_by"`
-	CompletionRatio        float64                              `json:"completion_ratio"`
-	CacheRatio             *float64                             `json:"cache_ratio,omitempty"`
-	CreateCacheRatio       *float64                             `json:"create_cache_ratio,omitempty"`
-	ImageRatio             *float64                             `json:"image_ratio,omitempty"`
-	AudioRatio             *float64                             `json:"audio_ratio,omitempty"`
-	AudioCompletionRatio   *float64                             `json:"audio_completion_ratio,omitempty"`
-	EnableGroup            []string                             `json:"enable_groups"`
-	SupportedEndpointTypes []constant.EndpointType              `json:"supported_endpoint_types"`
-	BillingMode            string                               `json:"billing_mode,omitempty"`
-	BillingExpr            string                               `json:"billing_expr,omitempty"`
-	PricingVersion         string                               `json:"pricing_version,omitempty"`
-	ViduResolutionPrices   []ratio_setting.ViduResolutionPrice  `json:"vidu_resolution_prices,omitempty"`
-	ImageResolutionPrices  []ratio_setting.ImageResolutionPrice `json:"image_resolution_prices,omitempty"`
+	ModelName                  string                                    `json:"model_name"`
+	Description                string                                    `json:"description,omitempty"`
+	Icon                       string                                    `json:"icon,omitempty"`
+	Tags                       string                                    `json:"tags,omitempty"`
+	VendorID                   int                                       `json:"vendor_id,omitempty"`
+	QuotaType                  int                                       `json:"quota_type"`
+	ModelRatio                 float64                                   `json:"model_ratio"`
+	ModelPrice                 float64                                   `json:"model_price"`
+	OwnerBy                    string                                    `json:"owner_by"`
+	CompletionRatio            float64                                   `json:"completion_ratio"`
+	CacheRatio                 *float64                                  `json:"cache_ratio,omitempty"`
+	CreateCacheRatio           *float64                                  `json:"create_cache_ratio,omitempty"`
+	ImageRatio                 *float64                                  `json:"image_ratio,omitempty"`
+	AudioRatio                 *float64                                  `json:"audio_ratio,omitempty"`
+	AudioCompletionRatio       *float64                                  `json:"audio_completion_ratio,omitempty"`
+	EnableGroup                []string                                  `json:"enable_groups"`
+	SupportedEndpointTypes     []constant.EndpointType                   `json:"supported_endpoint_types"`
+	BillingMode                string                                    `json:"billing_mode,omitempty"`
+	BillingExpr                string                                    `json:"billing_expr,omitempty"`
+	PricingVersion             string                                    `json:"pricing_version,omitempty"`
+	ViduResolutionPrices       []ratio_setting.ViduResolutionPrice       `json:"vidu_resolution_prices,omitempty"`
+	GrsaiVideoResolutionPrices []ratio_setting.GrsaiVideoResolutionPrice `json:"grsai_video_resolution_prices,omitempty"`
+	ImageResolutionPrices      []ratio_setting.ImageResolutionPrice      `json:"image_resolution_prices,omitempty"`
 }
 
 type PricingVendor struct {
@@ -110,6 +111,9 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 }
 
 func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCustomConfigs map[int]*dto.AdvancedCustomConfig) []constant.EndpointType {
+	if ability.ChannelType == constant.ChannelTypeGrsai {
+		return []constant.EndpointType{common.GetGrsaiModelEndpoint(ability.Model, ability.ChannelModelMapping)}
+	}
 	if ability.ChannelType != constant.ChannelTypeAdvancedCustom {
 		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 	}
@@ -273,12 +277,16 @@ func updatePricing() {
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
 	modelSupportEndpointsStr := make(map[string][]string)
+	grsaiVideoModels := make(map[string]bool)
 	advancedCustomConfigs := loadPricingAdvancedCustomConfigs(enableAbilities)
 
 	// 先根据已有能力填充原生端点
 	for _, ability := range enableAbilities {
 		endpoints := modelSupportEndpointsStr[ability.Model]
 		channelTypes := getPricingEndpointTypesForAbility(ability, advancedCustomConfigs)
+		if ability.ChannelType == constant.ChannelTypeGrsai && len(channelTypes) == 1 && channelTypes[0] == constant.EndpointTypeOpenAIVideo {
+			grsaiVideoModels[ability.Model] = true
+		}
 		for _, channelType := range channelTypes {
 			if !common.StringsContains(endpoints, string(channelType)) {
 				endpoints = append(endpoints, string(channelType))
@@ -386,6 +394,12 @@ func updatePricing() {
 			pricing.QuotaType = 0
 		}
 		pricing.ImageResolutionPrices = ratio_setting.GetImageResolutionPrices(model)
+		if grsaiVideoModels[model] {
+			pricing.GrsaiVideoResolutionPrices = ratio_setting.GetGrsaiVideoResolutionPrices(model)
+			if len(pricing.GrsaiVideoResolutionPrices) > 0 {
+				pricing.QuotaType = 1
+			}
+		}
 		if len(pricing.ImageResolutionPrices) > 0 {
 			pricing.QuotaType = 1
 		}

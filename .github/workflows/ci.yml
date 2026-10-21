@@ -96,6 +96,27 @@ jobs:
           src/features/home/__tests__/model-icon.test.ts
           src/context/__tests__/theme-preference.test.ts
           src/features/system-settings/models/__tests__/resolution-price-detection.test.ts
+          src/features/pricing/lib/__tests__/grsai-video.test.ts
+
+      - name: Lint Grsai video frontend changes
+        run: >-
+          bunx oxlint -c .oxlintrc.json
+          src/features/pricing/lib/video-api-samples.ts
+          src/features/pricing/lib/__tests__/grsai-video.test.ts
+          src/features/pricing/lib/mock-stats.ts
+          src/features/pricing/lib/price.ts
+          src/features/pricing/types.ts
+          src/features/pricing/components/model-details-api.tsx
+          src/features/channels/lib/channel-type-config.ts
+          src/features/system-settings/models/model-pricing-snapshots.ts
+          src/features/system-settings/models/model-ratio-form.tsx
+          src/features/system-settings/models/__tests__/resolution-price-detection.test.ts
+          src/i18n/static-keys.ts
+
+      - name: Check translation synchronization
+        run: |
+          bun run i18n:sync
+          git diff --exit-code -- src/i18n/locales
 
       - name: Build
         run: bun run build

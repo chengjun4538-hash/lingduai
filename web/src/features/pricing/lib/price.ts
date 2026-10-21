@@ -157,6 +157,9 @@ export function getResolutionPricing(
   if (model.vidu_resolution_prices?.length) {
     return { prices: model.vidu_resolution_prices, unit: 'second' }
   }
+  if (model.grsai_video_resolution_prices?.length) {
+    return { prices: model.grsai_video_resolution_prices, unit: 'second' }
+  }
   return null
 }
 

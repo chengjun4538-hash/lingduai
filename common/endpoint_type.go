@@ -7,7 +7,7 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	var endpointTypes []constant.EndpointType
 	switch channelType {
 	case constant.ChannelTypeGrsai:
-		return []constant.EndpointType{constant.EndpointTypeImageGeneration}
+		return []constant.EndpointType{GetGrsaiModelEndpoint(modelName, "")}
 	case constant.ChannelTypeJina:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeJinaRerank}
 	//case constant.ChannelTypeMidjourney, constant.ChannelTypeMidjourneyPlus:
@@ -66,4 +66,23 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageGeneration}, endpointTypes...)
 	}
 	return endpointTypes
+}
+
+// GetGrsaiModelEndpoint 区分同一渠道内的图片和视频，展示时也遵循链式模型映射。
+func GetGrsaiModelEndpoint(modelName, modelMapping string) constant.EndpointType {
+	var mapping map[string]string
+	if modelMapping != "" {
+		_ = UnmarshalJsonStr(modelMapping, &mapping)
+	}
+	for remaining := len(mapping); remaining > 0; remaining-- {
+		next := mapping[modelName]
+		if next == "" || next == modelName {
+			break
+		}
+		modelName = next
+	}
+	if modelName == "minimax-h3" {
+		return constant.EndpointTypeOpenAIVideo
+	}
+	return constant.EndpointTypeImageGeneration
 }

@@ -67,7 +67,7 @@ export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
     !hasPricingValue(snapshot.price) &&
     !hasPricingValue(snapshot.ratio))
 
-const resolutionPriceSuffix = /:(?:1k|2k|4k|540p|720p|1080p)$/i
+const resolutionPriceSuffix = /:(?:1k|2k|4k|480p|540p|720p|768p|1080p)$/i
 
 export const getResolutionPricedModelNames = (modelPrice: string) => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {

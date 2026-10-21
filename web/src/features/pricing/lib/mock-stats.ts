@@ -765,6 +765,59 @@ const VIDEO_PARAMS: SupportedParameter[] = [
 
 type ApiCategory = 'reasoning' | 'embedding' | 'image' | 'video' | 'chat'
 
+const GRSAI_VIDEO_PARAMS: SupportedParameter[] = [
+  {
+    name: 'prompt',
+    type: 'string',
+    required: true,
+    descriptionKey: 'Text description of the desired video',
+  },
+  {
+    name: 'duration',
+    type: 'integer',
+    range: '1–15 (1080p: 1–10)',
+    defaultValue: 5,
+    descriptionKey: 'Video length in seconds',
+  },
+  {
+    name: 'resolution',
+    type: 'enum',
+    enumValues: ['480p', '768p', '1080p'],
+    defaultValue: '480p',
+    descriptionKey: 'Video resolution',
+  },
+  {
+    name: 'aspect_ratio',
+    type: 'enum',
+    enumValues: ['16:9', '9:16'],
+    defaultValue: '16:9',
+    descriptionKey: 'Output aspect ratio',
+  },
+  {
+    name: 'images',
+    type: 'array',
+    range: '0–9',
+    descriptionKey: 'Reference image URLs or Base64 strings',
+  },
+  {
+    name: 'audios',
+    type: 'array',
+    range: '0–3',
+    descriptionKey: 'Reference audio URLs or Base64 strings',
+  },
+  {
+    name: 'seed',
+    type: 'integer',
+    descriptionKey: 'Deterministic sampling seed (best-effort)',
+  },
+  {
+    name: 'promptSkill',
+    type: 'boolean',
+    defaultValue: true,
+    descriptionKey: 'Automatically enhance the prompt',
+  },
+]
+
 /**
  * Refine the broad PROFILE_BY_NAME bucket into an API-shape category. The
  * `image` bucket from `PROFILE_BY_NAME` lumps still-image and video models
@@ -772,6 +825,11 @@ type ApiCategory = 'reasoning' | 'embedding' | 'image' | 'video' | 'chat'
  * need to distinguish them so the request-parameter table is accurate.
  */
 function apiCategoryOf(model: PricingModel): ApiCategory {
+  if (
+    model.supported_endpoint_types?.includes('openai-video') ||
+    model.output_modalities?.includes('video')
+  )
+    return 'video'
   const profile = PROFILE_BY_NAME(model.model_name)
   if (profile === 'embedding' || profile === 'reasoning') return profile
   if (profile === 'image') {
@@ -790,6 +848,11 @@ function apiCategoryOf(model: PricingModel): ApiCategory {
 export function buildSupportedParameters(
   model: PricingModel
 ): SupportedParameter[] {
+  if (
+    model.model_name === 'minimax-h3' ||
+    model.grsai_video_resolution_prices?.length
+  )
+    return GRSAI_VIDEO_PARAMS
   const cat = apiCategoryOf(model)
   if (cat === 'reasoning') return REASONING_PARAMS
   if (cat === 'embedding') return EMBEDDING_PARAMS

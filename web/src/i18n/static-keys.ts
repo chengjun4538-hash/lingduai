@@ -21,6 +21,11 @@ For commercial licensing, please contact support@quantumnous.com
 export const STATIC_I18N_KEYS = [
   'Grsai',
   'Nano Banana image generation with URL responses',
+  'Nano Banana images and MiniMax H3 videos',
+  'Video resolution',
+  'Reference image URLs or Base64 strings',
+  'Reference audio URLs or Base64 strings',
+  'Automatically enhance the prompt',
   // Header navigation
   'Home',
   'Console',

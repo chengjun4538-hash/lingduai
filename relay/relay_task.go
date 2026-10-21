@@ -18,6 +18,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -179,7 +180,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
-	if info.ChannelType == constant.ChannelTypeVidu ||
+	if info.ChannelType == constant.ChannelTypeGrsai {
+		priceData, err := buildGrsaiVideoPriceData(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "grsai_billing_error", http.StatusBadRequest)
+		}
+		info.PriceData = priceData
+	} else if info.ChannelType == constant.ChannelTypeVidu ||
 		isViduDynamicBillingModel(modelName) ||
 		isViduDynamicBillingModel(info.UpstreamModelName) {
 		priceData, err := buildViduDynamicPriceData(c, info)
@@ -229,6 +236,10 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
+		var apiErr *types.NewAPIError
+		if errors.As(err, &apiErr) {
+			return nil, service.TaskErrorWrapper(apiErr, "do_request_failed", apiErr.StatusCode)
+		}
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {

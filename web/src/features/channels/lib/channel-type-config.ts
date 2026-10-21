@@ -171,7 +171,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://grsaiapi.com',
     hints: {
       key: 'Enter API key for this channel',
-      models: 'Nano Banana image generation with URL responses',
+      models: 'Nano Banana images and MiniMax H3 videos',
     },
   },
 }

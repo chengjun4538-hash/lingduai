@@ -27,10 +27,17 @@ describe('分辨率价格识别', () => {
       "Nano Banana 2:1k": 0.02,
       "Nano Banana 2:2K": 0.03,
       "Nano Banana 2:4k": 0.04,
-      "viduq3:720p": 0.6
+      "viduq3:720p": 0.6,
+      "minimax-h3:480p": 0.1,
+      "h3-alias:768p": 0.2
     }`)
 
-    assert.deepEqual([...modelNames].sort(), ['Nano Banana 2', 'viduq3'])
+    assert.deepEqual([...modelNames].sort(), [
+      'Nano Banana 2',
+      'h3-alias',
+      'minimax-h3',
+      'viduq3',
+    ])
   })
 
   test('普通含冒号模型名不会被误判为分辨率价格', () => {
